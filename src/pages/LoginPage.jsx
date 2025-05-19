@@ -1,5 +1,40 @@
 // src/pages/LoginPage.jsx
-export default function LoginPage() {
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { login } from '../services/authService';
+
+export default function LoginPage({ onLogin }) {
+
+  const [userName, setUserName] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+const handleLogin = async (e) => {
+  e.preventDefault();
+  try {
+    const res = await login(userName, password);
+  console.log('Login successful:', res.data.data.user);
+    // Save to localStorage
+    localStorage.setItem('accessToken', res.data.data.accessToken);
+    localStorage.setItem('refreshToken', res.data.data.refreshToken);
+    localStorage.setItem('user', JSON.stringify(res.data.data.user));
+    localStorage.setItem('rolePermissions', JSON.stringify(res.data.data.rolePermissions));
+    localStorage.setItem('menuPermissions', JSON.stringify(res.data.data.menuPermissions));
+
+  
+
+    if (onLogin) onLogin();
+    navigate('/dashboard');
+  } catch (err) {
+    if (err.response && err.response.data && err.response.data.message) {
+      setError(err.response.data.message);
+    } else {
+      setError('Login failed. Please try again.');
+    }
+  }
+};
+
   return (
     <div className="flex h-screen">
       {/* Left Side - Orange Panel */}
@@ -28,15 +63,17 @@ export default function LoginPage() {
       {/* Right Side - Login Form */}
       <div className="w-1/2 flex items-center justify-center bg-white">
         <div className="w-full max-w-md">
-          <h2 className="text-3xl font-semibold text-indigo-700 to-purple-700 mb-2">Welcome to Ventic</h2>
+          <h2 className="text-3xl font-semibold text-indigo-700 to-purple-700 mb-2">Welcome to RMS</h2>
           <p className="text-sm text-gray-600 mb-6">Sign in by entering information below</p>
 
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleLogin}>
+            {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
             <div>
-              <label className="block text-gray-700 mb-1">Email</label>
+              <label className="block text-gray-700 mb-1">Username</label>
               <input
-                type="email"
-                defaultValue="demo@demo.com"
+                type="Username"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
                 className="w-full border border-gray-300 rounded px-4 py-2"
               />
             </div>
@@ -45,7 +82,8 @@ export default function LoginPage() {
               <label className="block text-gray-700 mb-1">Password</label>
               <input
                 type="password"
-                defaultValue="......"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full border border-gray-300 rounded px-4 py-2"
               />
             </div>
