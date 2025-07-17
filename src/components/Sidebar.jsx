@@ -29,6 +29,14 @@ const menu = [
           { label: 'Menu Setup', to: '/roles/menu_setup' },
         ],        
        },
+       { 
+        label: 'Permissions', 
+        icon: FaListUl,
+        children: [
+          { label: 'Permission Add', to: '/permissions/add' },
+          { label: 'Permission List', to: '/permissions/list' },
+        ],        
+       },
     ],
   },
   { label: 'Inventory', icon: FaClipboardList, to: '/inventory' },

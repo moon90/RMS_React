@@ -4,6 +4,11 @@ import {
 
 export const sidebarMenu = [
   { label: 'Dashboard', icon: <FaThLarge />, path: '/' },
-  { label: 'Apps', icon: <FaInfoCircle />, children: [] },
-  { label: 'Charts', icon: <FaChartLine />, children: [] }
+  { label: 'Roles', icon: <FaUsers />, children: [
+    { label: 'Role List', path: '/roles' },
+    { label: 'Add Role', path: '/roles/add' },
+    { label: 'Role Permissions', path: '/roles/permissions' }
+  ]},
+  { label: 'Permissions', icon: <FaLock />, children: [] },
+  { label: 'Menus', icon: <FaList />, children: [] }
 ];

@@ -1,18 +1,25 @@
-// src/components/CustomerMap.jsx
+import { Card, CardContent, Typography, Box, ButtonGroup, Button } from '@mui/material';
+
 export default function CustomerMap() {
   return (
-    <div className="bg-white rounded-xl p-6 shadow">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Customer Map</h2>
-        <div className="bg-orange-100 text-orange-600 text-sm rounded-full px-4 py-1 flex gap-2">
-          <button className="font-bold">Year</button>
-          <span className="text-gray-400">Monthly</span>
-          <span className="text-gray-400">Week</span>
-        </div>
-      </div>
-      <div className="h-32 bg-gray-100 rounded flex items-center justify-center text-gray-400">
-        [ Map Placeholder ]
-      </div>
-    </div>
+    <Card sx={{ mt: 3 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" component="div">
+            Customer Map
+          </Typography>
+          <ButtonGroup variant="outlined" aria-label="outlined button group">
+            <Button>Year</Button>
+            <Button>Monthly</Button>
+            <Button>Week</Button>
+          </ButtonGroup>
+        </Box>
+        <Box sx={{ height: 200, backgroundColor: '#ecf0f1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1 }}>
+          <Typography variant="body1" color="text.secondary">
+            [ Map Placeholder ]
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
   );
 }

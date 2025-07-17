@@ -1,17 +1,12 @@
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Tooltip,
-  Filler
-} from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { Card, CardContent, Typography, Box, useTheme } from '@mui/material';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
 export default function RevenueChart() {
+  const theme = useTheme();
+
   const data = {
     labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'],
     datasets: [
@@ -19,8 +14,8 @@ export default function RevenueChart() {
         label: "Revenue",
         data: [22, 27, 21, 30, 24, 29, 32],
         fill: true,
-        backgroundColor: 'rgba(255, 112, 67, 0.2)',
-        borderColor: '#ff5722',
+        backgroundColor: theme.palette.secondary.light,
+        borderColor: theme.palette.secondary.main,
         tension: 0.5,
         pointRadius: 0,
       }
@@ -40,19 +35,28 @@ export default function RevenueChart() {
   };
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow mt-4">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h2 className="text-lg font-semibold">Today's Revenue</h2>
-          <p className="text-sm text-gray-400">Lorem ipsum dolor sit amet</p>
-        </div>
-        <div className="text-right">
-          <h2 className="text-2xl font-bold text-gray-800">$240.45</h2>
-          <p className="text-sm text-green-500">↑ 0.5% than last day</p>
-        </div>
-      </div>
-
-      <Line data={data} options={options} height={100} />
-    </div>
+    <Card sx={{ mt: 3 }}>
+      <CardContent>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Box>
+            <Typography variant="h6" component="div">
+              Today's Revenue
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Lorem ipsum dolor sit amet
+            </Typography>
+          </Box>
+          <Box sx={{ textAlign: 'right' }}>
+            <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
+              $240.45
+            </Typography>
+            <Typography variant="body2" color="success.main">
+              ↑ 0.5% than last day
+            </Typography>
+          </Box>
+        </Box>
+        <Line data={data} options={options} height={100} />
+      </CardContent>
+    </Card>
   );
 }

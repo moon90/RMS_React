@@ -1,27 +1,32 @@
-// src/components/Card.jsx
-// src/components/Card.jsx
 import { CircularProgressbarWithChildren, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
+import { Card as MuiCard, CardContent, Typography, Box } from '@mui/material';
 
 export default function Card({ title, value, percentage, icon }) {
   return (
-    <div className="bg-white p-4 rounded-xl shadow flex items-center gap-4 min-h-[110px]">
-      <div className="w-16 h-16">
+    <MuiCard sx={{ display: 'flex', alignItems: 'center', p: 2, minHeight: 110 }}>
+      <Box sx={{ width: 64, height: 64, mr: 2 }}>
         <CircularProgressbarWithChildren
           value={percentage}
           strokeWidth={10}
           styles={buildStyles({
-            pathColor: "#7b61ff",
-            trailColor: "#f0f0f0"
+            pathColor: "#1abc9c", // Teal from theme
+            trailColor: "#ecf0f1" // Light Grey from theme
           })}
         >
-          <div className="text-purple-500 text-xl">{icon}</div>
+          <Typography variant="h5" component="div">
+            {icon}
+          </Typography>
         </CircularProgressbarWithChildren>
-      </div>
-      <div>
-        <p className="text-gray-500 text-sm">{title}</p>
-        <h2 className="text-2xl font-bold">{value}</h2>
-      </div>
-    </div>
+      </Box>
+      <CardContent sx={{ flexGrow: 1, p: 0, '&:last-child': { pb: 0 } }}>
+        <Typography color="text.secondary" variant="subtitle2">
+          {title}
+        </Typography>
+        <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
+          {value}
+        </Typography>
+      </CardContent>
+    </MuiCard>
   );
 }
