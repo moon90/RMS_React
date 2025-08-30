@@ -1,14 +1,23 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 import FormCard from '../../components/FormCard.jsx';
+import { createMenu, updateMenu } from '../../services/menuService.js';
+import { hasPermission } from '../../utils/permissionUtils';
 
-const MenuAdd = ({ isEdit = false, menuData = null, menuOptions = [], onClose, showTitle= true}) => {
+const MenuAdd = ({ isEdit = false, menuData = null, menuOptions = [], onClose, onSave, showTitle= true}) => {
   const [formData, setFormData] = useState({
     menuName: '',
     parentID: '',
     menuPath: '',
     menuIcon: '',
+    controllerName: '',
+    actionName: '',
+    moduleName: '',
     displayOrder: 0
   });
+
+  const canCreateMenu = hasPermission('MENU_CREATE');
+  const canUpdateMenu = hasPermission('MENU_UPDATE');
 
   useEffect(() => {
     if (isEdit && menuData) {
@@ -17,6 +26,9 @@ const MenuAdd = ({ isEdit = false, menuData = null, menuOptions = [], onClose, s
         parentID: menuData.parentID ?? '',
         menuPath: menuData.menuPath || '',
         menuIcon: menuData.menuIcon || '',
+        controllerName: menuData.controllerName || '',
+        actionName: menuData.actionName || '',
+        moduleName: menuData.moduleName || '',
         displayOrder: menuData.displayOrder || 0
       });
     }
@@ -30,19 +42,49 @@ const MenuAdd = ({ isEdit = false, menuData = null, menuOptions = [], onClose, s
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isEdit && !canUpdateMenu) {
+      toast.error('You do not have permission to update menus.');
+      return;
+    }
+    if (!isEdit && !canCreateMenu) {
+      toast.error('You do not have permission to create menus.');
+      return;
+    }
+
     const payload = {
       MenuID: isEdit ? menuData.id : 0,
       MenuName: formData.menuName,
       ParentID: formData.parentID === '' ? null : Number(formData.parentID),
       MenuPath: formData.menuPath,
       MenuIcon: formData.menuIcon,
+      ControllerName: formData.controllerName,
+      ActionName: formData.actionName,
+      ModuleName: formData.moduleName,
       DisplayOrder: formData.displayOrder
     };
 
-    console.log('Submitted Menu:', payload);
-    onClose();
+    try {
+      let response;
+      if (isEdit) {
+        response = await updateMenu(menuData.id, payload);
+      } else {
+        response = await createMenu(payload);
+      }
+
+      if (response.data.isSuccess) {
+        toast.success(isEdit ? 'Menu updated successfully!' : 'Menu created successfully!');
+        onSave();
+        if (onClose) onClose();
+      } else {
+        toast.error(response.data.message || 'Operation failed.');
+      }
+    } catch (error) {
+      toast.error('An error occurred during the operation.');
+      console.error('Menu operation error:', error);
+    }
   };
 
   const handleReset = () => {
@@ -51,6 +93,9 @@ const MenuAdd = ({ isEdit = false, menuData = null, menuOptions = [], onClose, s
       parentID: '',
       menuPath: '',
       menuIcon: '',
+      controllerName: '',
+      actionName: '',
+      moduleName: '',
       displayOrder: 0
     });
   };
@@ -123,6 +168,45 @@ const MenuAdd = ({ isEdit = false, menuData = null, menuOptions = [], onClose, s
             </div>
 
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Controller Name</label>
+              <input
+                type="text"
+                name="controllerName"
+                value={formData.controllerName}
+                onChange={handleInputChange}
+                required
+                placeholder="Enter controller name"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Action Name</label>
+              <input
+                type="text"
+                name="actionName"
+                value={formData.actionName}
+                onChange={handleInputChange}
+                required
+                placeholder="Enter action name"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Module Name</label>
+              <input
+                type="text"
+                name="moduleName"
+                value={formData.moduleName}
+                onChange={handleInputChange}
+                required
+                placeholder="Enter module name"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
               <input
                 type="number"
@@ -147,12 +231,14 @@ const MenuAdd = ({ isEdit = false, menuData = null, menuOptions = [], onClose, s
               Reset
             </button>
 
-            <button
-              type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
-            >
-              {isEdit ? 'Update Menu' : 'Create Menu'}
-            </button>
+            {(isEdit && canUpdateMenu || !isEdit && canCreateMenu) && (
+              <button
+                type="submit"
+                className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
+              >
+                {isEdit ? 'Update Menu' : 'Create Menu'}
+              </button>
+            )}
           </div>
         </form>
       </FormCard>

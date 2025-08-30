@@ -1,58 +1,67 @@
-import React, { useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { debounce } from 'lodash';
 import MenuAdd from './MenuAdd';
+import { toast } from 'react-toastify';
+import { getAllMenus, deleteMenu } from '../../services/menuService.js';
+import { hasPermission } from '../../utils/permissionUtils';
 
 const MenuList = () => {
-  const [menus, setMenus] = useState([
-    {
-      id: 1,
-      name: 'Dashboard',
-      parentId: null,
-      path: '/dashboard',
-      icon: 'fa-home',
-      order: 1
-    },
-    {
-      id: 2,
-      name: 'Users',
-      parentId: null,
-      path: '/users',
-      icon: 'fa-users',
-      order: 2
-    },
-    {
-      id: 3,
-      name: 'Settings',
-      parentId: null,
-      path: '/settings',
-      icon: 'fa-cog',
-      order: 3
-    },
-    {
-      id: 4,
-      name: 'User List',
-      parentId: 2,
-      path: '/users/list',
-      icon: 'fa-list',
-      order: 1
-    }
-  ]);
-
+  const [menus, setMenus] = useState([]);
+  const [totalMenus, setTotalMenus] = useState(0);
   const [selectedMenu, setSelectedMenu] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('name');
+  const [sortField, setSortField] = useState('menuName'); // Changed to match backend DTO
   const [sortDirection, setSortDirection] = useState('asc');
 
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
+  const canCreateMenu = hasPermission('MENU_CREATE');
+  const canUpdateMenu = hasPermission('MENU_UPDATE');
+  const canDeleteMenu = hasPermission('MENU_DELETE');
+
+  const fetchMenus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {
+        pageNumber: currentPage,
+        pageSize: itemsPerPage,
+        searchQuery: searchTerm,
+        sortColumn: sortField,
+        sortDirection: sortDirection,
+      };
+      const response = await getAllMenus(params);
+      console.log('getAllMenus response:', response);
+      // Directly access data from response.data (which is PagedResult)
+      setMenus(response.data.items);
+      setTotalMenus(response.data.totalRecords || 0);
+    } catch (err) {
+      toast.error('An error occurred while fetching menus.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection]);
+
+  useEffect(() => {
+    fetchMenus();
+  }, [fetchMenus]);
+
+  const debouncedSearch = useCallback(debounce((value) => {
+    setSearchTerm(value);
     setCurrentPage(1);
+  }, 300), []);
+
+  const handleSearchChange = (event) => {
+    debouncedSearch(event.target.value);
   };
 
   const handleSort = (field) => {
-    if (sortField === field) {
+    if (loading) return;
+    if (field === sortField) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
@@ -60,46 +69,89 @@ const MenuList = () => {
     }
   };
 
-  const handleEdit = (id) => {
-    const item = menus.find(m => m.id === id);
-    setSelectedMenu(item);
+  const handleEdit = (menu) => {
+    if (!canUpdateMenu) {
+      toast.error('You do not have permission to edit menus.');
+      return;
+    }
+    setSelectedMenu(menu);
     setIsEditModalOpen(true);
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Are you sure you want to delete this menu?')) {
-      setMenus(prev => prev.filter(m => m.id !== id));
+    if (!canDeleteMenu) {
+      toast.error('You do not have permission to delete menus.');
+      return;
     }
+    toast(
+      ({ closeToast }) => (
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-gray-800 mb-2">Are you sure you want to delete this menu?</span>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const response = await deleteMenu(id);
+                  if (response.isSuccess) {
+                    toast.success('Menu deleted successfully');
+                  } else {
+                    toast.error(response.message || 'Failed to delete menu');
+                  }
+                } catch (error) {
+                  if (error.response && error.response.data && error.response.data.message) {
+                    toast.error(error.response.data.message);
+                  } else {
+                    toast.error('An error occurred while deleting the menu.');
+                  }
+                  console.error(error);
+                } finally {
+                  fetchMenus();
+                  closeToast();
+                }
+              }}
+              className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Delete
+            </button>
+            <button
+              onClick={closeToast}
+              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        autoClose: false,
+        closeOnClick: false,
+        draggable: false
+      }
+    );
   };
 
-  const filteredMenus = menus.filter(m =>
-    m.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSave = () => {
+    setIsEditModalOpen(false);
+    fetchMenus();
+  };
 
-  const sortedMenus = [...filteredMenus].sort((a, b) => {
-    if (a[sortField] < b[sortField]) return sortDirection === 'asc' ? -1 : 1;
-    if (a[sortField] > b[sortField]) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentItems = sortedMenus.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredMenus.length / itemsPerPage);
+  const totalPages = Math.ceil(totalMenus / itemsPerPage);
 
   return (
     <div className="p-6 bg-white rounded-lg shadow-md">
       <div className="mb-6 flex flex-col md:flex-row justify-between items-center">
         <h2 className="text-2xl font-semibold">Menu List</h2>
-        <button
-          onClick={() => {
-            setSelectedMenu(null);
-            setIsEditModalOpen(true);
-          }}
-          className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-        >
-          Add Menu
-        </button>
+        {canCreateMenu && (
+          <button
+            onClick={() => {
+              setSelectedMenu(null);
+              setIsEditModalOpen(true);
+            }}
+            className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+          >
+            Add Menu
+          </button>
+        )}
       </div>
 
       <div className="mb-6 flex flex-col md:flex-row gap-4">
@@ -107,143 +159,241 @@ const MenuList = () => {
           <input
             type="text"
             placeholder="Search menus..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={searchTerm}
-            onChange={handleSearch}
+            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            onChange={handleSearchChange}
+            disabled={loading}
           />
           <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-              {['name', 'path', 'icon', 'order'].map(field => (
+      {loading ? (
+        <p>Loading menus...</p>
+      ) : menus.length > 0 ? (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
                 <th
-                  key={field}
-                  onClick={() => handleSort(field)}
-                  className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer"
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
+                  onClick={() => handleSort('menuName')}
                 >
-                  <div className="flex items-center capitalize">
-                    {field}
-                    {sortField === field && (
+                  <div className="flex items-center">
+                    Menu Name
+                    {sortField === 'menuName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                          d={sortDirection === 'asc' ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
                     )}
                   </div>
                 </th>
-              ))}
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Parent</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {currentItems.map((menu, idx) => (
-              <tr key={menu.id}>
-                <td className="px-4 py-4 text-sm text-gray-700">{indexOfFirst + idx + 1}</td>
-                <td className="px-4 py-4 text-sm text-gray-700">{menu.name}</td>
-                <td className="px-4 py-4 text-sm text-gray-700">{menu.path}</td>
-                <td className="px-4 py-4 text-sm text-gray-700">{menu.icon}</td>
-                <td className="px-4 py-4 text-sm text-gray-700">{menu.order}</td>
-                <td className="px-4 py-4 text-sm text-gray-700">
-                  {menu.parentId
-                    ? menus.find(m => m.id === menu.parentId)?.name || '(Deleted)'
-                    : '—'}
-                </td>
-                <td className="px-4 py-4 text-sm text-gray-700">
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleEdit(menu.id)}
-                      className="p-1 border border-gray-300 rounded-md hover:bg-gray-100"
-                      aria-label="Edit menu"
-                    >
-                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5h-2m-2 0V7a2 2 0 00-2-2H11a2 2 0 00-2 2v5a2 2 0 002 2h5M9 12h1m-1 4h1" />
+                <th
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
+                  onClick={() => handleSort('menuPath')}
+                >
+                  <div className="flex items-center">
+                    Menu Path
+                    {sortField === 'menuPath' && (
+                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
-                    </button>
-                    <button
-                      onClick={() => handleDelete(menu.id)}
-                      className="p-1 border border-gray-300 rounded-md hover:bg-red-100"
-                      aria-label="Delete menu"
-                    >
-                      <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    )}
                   </div>
-                </td>
+                </th>
+                <th
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
+                  onClick={() => handleSort('menuIcon')}
+                >
+                  <div className="flex items-center">
+                    Menu Icon
+                    {sortField === 'menuIcon' && (
+                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
+                  onClick={() => handleSort('controllerName')}
+                >
+                  <div className="flex items-center">
+                    Controller Name
+                    {sortField === 'controllerName' && (
+                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
+                  onClick={() => handleSort('actionName')}
+                >
+                  <div className="flex items-center">
+                    Action Name
+                    {sortField === 'actionName' && (
+                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
+                  onClick={() => handleSort('moduleName')}
+                >
+                  <div className="flex items-center">
+                    Module Name
+                    {sortField === 'moduleName' && (
+                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
+                  onClick={() => handleSort('displayOrder')}
+                >
+                  <div className="flex items-center">
+                    Display Order
+                    {sortField === 'displayOrder' && (
+                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                      </svg>
+                    )}
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {menus.map((menu, idx) => (
+                <tr key={menu.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-4 text-sm text-gray-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{menu.menuName}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{menu.menuPath}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{menu.menuIcon}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{menu.controllerName}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{menu.actionName}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{menu.moduleName}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{menu.displayOrder}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">
+                    {menu.parentID
+                      ? menus.find(m => m.id === menu.parentID)?.menuName || '(Deleted)'
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-4 text-sm text-gray-700">
+                    <div className="flex space-x-2">
+                      {canUpdateMenu && (
+                        <button
+                          onClick={() => handleEdit(menu)}
+                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+                          aria-label="Edit menu"
+                        >
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5h-2m-2 0V7a2 2 0 00-2-2H11a2 2 0 00-2 2v5a2 2 0 002 2h5M9 12h1m-1 4h1" />
+                          </svg>
+                        </button>
+                      )}
+                      {canDeleteMenu && (
+                        <button
+                          onClick={() => handleDelete(menu.id)}
+                          className="p-1 border border-gray-300 rounded-md hover:bg-red-100 transition-colors"
+                          aria-label="Delete menu"
+                        >
+                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="text-center py-4">No menus found.</p>
+      )}
 
-      {/* Pagination */}
       <div className="mt-6 flex flex-col md:flex-row justify-between items-center">
-        <span className="text-sm text-gray-700 mb-2 md:mb-0">
-          Showing <strong>{indexOfFirst + 1}</strong> to <strong>{Math.min(indexOfLast, filteredMenus.length)}</strong> of <strong>{filteredMenus.length}</strong> entries
-        </span>
-        <div className="flex items-center gap-2">
-          <label className="text-sm">Items per page:</label>
+        <div className="mb-4 md:mb-0">
+          <span className="text-sm text-gray-700">
+            Showing <span className="font-medium">{totalMenus === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</span> to{' '}
+            <span className="font-medium">
+              {totalMenus === 0 ? 0 : Math.min(currentPage * itemsPerPage, totalMenus)}
+            </span> of <span className="font-medium">{totalMenus}</span> entries
+          </span>
+        </div>
+
+        <div className="flex items-center">
+          <label className="mr-2 text-sm text-gray-700">Items per page:</label>
           <select
-            className="p-1 text-sm border border-gray-300 rounded-md"
+            className="p-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={itemsPerPage}
             onChange={(e) => {
               setItemsPerPage(Number(e.target.value));
               setCurrentPage(1);
             }}
+            disabled={loading}
           >
-            {[5, 10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+            {[5, 10, 25, 50].map(number => (
+              <option key={number} value={number}>{number}</option>
+            ))}
           </select>
         </div>
-        <div className="flex items-center mt-2 md:mt-0 gap-1">
+
+        <div className="mt-4 md:mt-0 flex items-center">
           <button
-            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-            disabled={currentPage === 1}
-            className="px-3 py-1 border border-gray-300 text-sm rounded-md disabled:opacity-50"
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1 || loading}
+            className="px-3 py-1 rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Prev
+            Previous
           </button>
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`px-3 py-1 rounded-md text-sm ${
-                currentPage === i + 1
-                  ? 'bg-blue-500 text-white'
-                  : 'border border-gray-300 hover:bg-gray-100'
-              }`}
-            >
-              {i + 1}
-            </button>
-          ))}
+
+          <div className="mx-2 flex items-center">
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i + 1}
+                onClick={() => setCurrentPage(i + 1)}
+                className={`mx-1 px-3 py-1 text-sm rounded-md ${
+                  currentPage === i + 1
+                    ? 'bg-blue-500 text-white'
+                    : 'border border-gray-300 text-gray-700 hover:bg-gray-100'
+                }`}
+                disabled={loading}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+
           <button
-            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            className="px-3 py-1 border border-gray-300 text-sm rounded-md disabled:opacity-50"
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} 
+            disabled={currentPage === totalPages || loading}
+            className="px-3 py-1 rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
           </button>
         </div>
       </div>
 
-      {/* Edit Modal */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 p-6 relative animate-scale-in">
             <div className="flex justify-between items-center border-b pb-4 mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">
-                {selectedMenu ? 'Edit Menu' : 'Add Menu'}
-              </h3>
+              <h3 className="text-xl font-semibold text-gray-800">{selectedMenu ? 'Edit Menu' : 'Add Menu'}</h3>
               <button
                 onClick={() => setIsEditModalOpen(false)}
-                className="text-gray-400 hover:text-red-500"
+                className="text-gray-400 hover:text-red-500 transition"
+                aria-label="Close modal"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -256,6 +406,7 @@ const MenuList = () => {
                 menuData={selectedMenu}
                 menuOptions={menus}
                 onClose={() => setIsEditModalOpen(false)}
+                onSave={handleSave}
                 showTitle={false}
               />
             </div>

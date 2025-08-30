@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import FormCard from '../../components/FormCard.jsx';
-import { createRole, updateRole } from '../../services/roleService.js';
+import { createRole, updateRole } from '../../services/userRoleManagementService.js';
+import { hasPermission } from '../../utils/permissionUtils';
 
 const RoleAdd = ({ isEdit = false, roleData = null, onClose, onSave, showTitle = true }) => {
   const [formData, setFormData] = useState({
     roleName: '',
     description: '',
-    status: true
+    status: true, // Default status for new roles
   });
   const [errors, setErrors] = useState({});
+
+  const canCreateRole = hasPermission('ROLE_CREATE');
+  const canUpdateRole = hasPermission('ROLE_UPDATE');
 
   useEffect(() => {
     if (isEdit && roleData) {
@@ -17,7 +21,7 @@ const RoleAdd = ({ isEdit = false, roleData = null, onClose, onSave, showTitle =
         roleID: roleData.roleID,
         roleName: roleData.roleName || '',
         description: roleData.description || '',
-        status: roleData.status ?? true
+        status: roleData.status ?? true,
       });
     }
   }, [isEdit, roleData]);
@@ -37,13 +41,13 @@ const RoleAdd = ({ isEdit = false, roleData = null, onClose, onSave, showTitle =
         roleID: roleData.roleID,
         roleName: roleData.roleName || '',
         description: roleData.description || '',
-        status: roleData.status ?? true
+        status: roleData.status ?? true,
       });
     } else {
       setFormData({
         roleName: '',
         description: '',
-        status: true
+        status: true,
       });
     }
   };
@@ -52,40 +56,45 @@ const RoleAdd = ({ isEdit = false, roleData = null, onClose, onSave, showTitle =
     e.preventDefault();
     setErrors({});
 
-    const rolePayload = { ...formData, Status: formData.status };
+    if (isEdit && !canUpdateRole) {
+      toast.error('You do not have permission to update roles.');
+      return;
+    }
+    if (!isEdit && !canCreateRole) {
+      toast.error('You do not have permission to create roles.');
+      return;
+    }
 
     try {
+      let response;
       if (isEdit) {
-        const response = await updateRole(formData.roleID, rolePayload);
-        if (!response.data.isSuccess) {
-          throw { response };
-        }
+        response = await updateRole(formData.roleID, formData);
       } else {
-        const response = await createRole(rolePayload);
-        if (!response.data.isSuccess) {
-          throw { response };
-        }
+        response = await createRole(formData);
       }
 
-      toast.success(isEdit ? 'Role updated successfully' : 'Role created successfully');
-      onSave();
-      if (onClose) onClose();
-
+      if (response.data.isSuccess) {
+        toast.success(isEdit ? 'Role updated successfully!' : 'Role created successfully!');
+        onSave();
+        if (onClose) onClose();
+      } else {
+        const errorResponse = response.data;
+        if (errorResponse && errorResponse.details && errorResponse.details.length > 0) {
+          const newErrors = {};
+          let toastMessage = "Validation failed:\n";
+          errorResponse.details.forEach(err => {
+            newErrors[err.propertyName] = err.errorMessage;
+            toastMessage += `- ${err.errorMessage}\n`;
+          });
+          setErrors(newErrors);
+          toast.error(toastMessage);
+        } else {
+          toast.error(errorResponse?.message || `An error occurred while ${isEdit ? 'updating' : 'creating'} the role.`);
+        }
+      }
     } catch (error) {
-      const errorResponse = error.response?.data;
-      if (errorResponse && errorResponse.details && errorResponse.details.length > 0) {
-        const newErrors = {};
-        let toastMessage = "Validation failed:\n";
-        errorResponse.details.forEach(err => {
-          newErrors[err.propertyName] = err.errorMessage;
-          toastMessage += `- ${err.errorMessage}\n`;
-        });
-        setErrors(newErrors);
-        toast.error(toastMessage);
-      } else {
-        toast.error(errorResponse?.message || `An error occurred while ${isEdit ? 'updating' : 'creating'} the role.`);
-      }
-      console.error(error);
+      toast.error(`An error occurred while ${isEdit ? 'updating' : 'creating'} the role.`);
+      console.error('Role operation error:', error);
     }
   };
 
@@ -100,7 +109,6 @@ const RoleAdd = ({ isEdit = false, roleData = null, onClose, onSave, showTitle =
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Role Name</label>
               <input
@@ -127,28 +135,29 @@ const RoleAdd = ({ isEdit = false, roleData = null, onClose, onSave, showTitle =
               />
               {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
             </div>
+
+            {isEdit && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select
+                  name="status"
+                  value={formData.status ? 'active' : 'inactive'}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      status: e.target.value === 'active',
+                    }))
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            )}
           </div>
 
-          {isEdit && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                name="status"
-                value={formData.status ? 'active' : 'inactive'}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    status: e.target.value === 'active',
-                  }))
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-          )}
-
+          {/* Buttons */}
           <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
@@ -161,12 +170,14 @@ const RoleAdd = ({ isEdit = false, roleData = null, onClose, onSave, showTitle =
               Reset
             </button>
 
-            <button
-              type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
-            >
-              {isEdit ? 'Update Role' : 'Create Role'}
-            </button>
+            {(isEdit && canUpdateRole || !isEdit && canCreateRole) && (
+              <button
+                type="submit"
+                className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
+              >
+                {isEdit ? 'Update Role' : 'Create Role'}
+              </button>
+            )}
           </div>
         </form>
       </FormCard>

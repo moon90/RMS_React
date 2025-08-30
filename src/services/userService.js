@@ -36,3 +36,13 @@ export const assignRolesToUser = async (userId, roleIds) => {
 export const unassignRolesFromUser = async (userId, roleIds) => {
   return await api.post(`/Users/${userId}/unassign-roles`, roleIds);
 };
+
+export const uploadProfilePicture = async (userId, formData) => { // Added
+  return await api.post(`/Users/${userId}/upload-profile-picture`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data' // Important for FormData
+    }
+  });
+};
+
+

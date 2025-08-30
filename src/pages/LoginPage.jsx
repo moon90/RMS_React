@@ -1,39 +1,32 @@
-// src/pages/LoginPage.jsx
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { login } from '../services/authService';
+import { AuthContext } from '../context/AuthContext';
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage() {
+  const { login } = useContext(AuthContext);
 
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-const handleLogin = async (e) => {
-  e.preventDefault();
-  try {
-    const res = await login(userName, password);
-  console.log('Login successful:', res.data.data.user);
-    // Save to localStorage
-    localStorage.setItem('accessToken', res.data.data.accessToken);
-    localStorage.setItem('refreshToken', res.data.data.refreshToken);
-    localStorage.setItem('user', JSON.stringify(res.data.data.user));
-    localStorage.setItem('rolePermissions', JSON.stringify(res.data.data.rolePermissions));
-    localStorage.setItem('menuPermissions', JSON.stringify(res.data.data.menuPermissions));
-
-  
-
-    if (onLogin) onLogin();
-    navigate('/dashboard');
-  } catch (err) {
-    if (err.response && err.response.data && err.response.data.message) {
-      setError(err.response.data.message);
-    } else {
-      setError('Login failed. Please try again.');
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      const result = await login(userName, password);
+      if (result.success) {
+        navigate('/dashboard');
+      } else {
+        setError(result.message || 'Login failed. Please try again.');
+      }
+    } catch (err) {
+      if (err.response && err.response.data && err.response.data.message) {
+        setError(err.response.data.message);
+      } else {
+        setError('Login failed. Please try again.');
+      }
     }
-  }
-};
+  };
 
   return (
     <div className="flex h-screen">
