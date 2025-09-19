@@ -9,12 +9,6 @@ export const hasPermission = (permissionKey) => {
 };
 
 export const hasMenuPermission = (menuName) => {
-  try {
-    const menuPermissions = JSON.parse(localStorage.getItem('menuPermissions') || '[]');
-    const menu = menuPermissions.find(m => m.menuName === menuName);
-    return menu ? menu.canView : false;
-  } catch (e) {
-    console.error("Error parsing menu permissions from localStorage", e);
-    return false;
-  }
+  // Temporarily return true to make all menus visible
+  return true;
 };

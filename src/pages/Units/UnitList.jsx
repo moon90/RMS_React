@@ -12,7 +12,7 @@ const UnitList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('name');
+  const [sortField, setSortField] = useState('Name');
   const [sortDirection, setSortDirection] = useState('asc');
   const [statusFilter, setStatusFilter] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -245,11 +245,11 @@ const UnitList = () => {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
               <th
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('name')}
+                onClick={() => handleSort('Name')}
               >
                 <div className="flex items-center">
                   Unit Name
-                  {sortField === 'name' && (
+                  {sortField === 'Name' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -259,11 +259,11 @@ const UnitList = () => {
               </th>
               <th
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('shortCode')}
+                                onClick={() => handleSort('ShortCode')}
               >
                 <div className="flex items-center">
                   Short Code
-                  {sortField === 'shortCode' && (
+                  {sortField === 'ShortCode' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -314,11 +314,17 @@ const UnitList = () => {
                         <button 
                           onClick={() => handleToggleStatus(unit.id, unit.status)}
                           className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Toggle status"
+                          aria-label="Toggle active status"
                         >
-                          <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
+                          {unit.status ? ( // Change icon based on active status
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
                         </button>
                       )}
                       {canDelete && (

@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { refreshToken } from '../services/authService';
+import config from '../config';
 
 const api = axios.create({
-  baseURL: 'https://localhost:7083/api', // Your backend API base URL
+  baseURL: config.API_BASE_URL, //'https://localhost:7083/api', // Your backend API base URL
   headers: {
     'Accept': 'application/json'
   },

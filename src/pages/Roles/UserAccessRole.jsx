@@ -16,7 +16,7 @@ const UserAccessRole = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
-    const [sortField, setSortField] = useState('userName');
+    const [sortField, setSortField] = useState('UserName');
     const [sortDirection, setSortDirection] = useState('asc');
     const [totalUsers, setTotalUsers] = useState(0);
 
@@ -25,8 +25,9 @@ const UserAccessRole = () => {
         setError(null);
         try {
             const usersResponse = await fetchUsers(currentPage, itemsPerPage, searchTerm, sortField, sortDirection);
-            setUsers(usersResponse.items || []);
-            setTotalUsers(usersResponse.totalRecords || 0);
+            console.log('Fetched users:', usersResponse); // Debug log
+            setUsers(usersResponse.data.data.items || []);
+            setTotalUsers(usersResponse.data.data.totalRecords || 0);
         } catch (err) {
             setError('Failed to load user data. Please check your network and permissions.');
             console.error('Error fetching users:', err);
@@ -39,7 +40,8 @@ const UserAccessRole = () => {
     const fetchAllRoles = useCallback(async () => {
         try {
             const rolesResponse = await fetchRoles(1, 1000); // Fetch all roles for the modal
-            setAllRoles(rolesResponse.items || []);
+            console.log('Fetched roles:', rolesResponse); // Debug log
+            setAllRoles(rolesResponse.data.data.items || []);
         } catch (err) {
             console.error('Error fetching all roles:', err);
             toast.error('Failed to load available roles.');
@@ -151,17 +153,17 @@ const UserAccessRole = () => {
                     <thead className="bg-gray-50">
                         <tr>
                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('userID')}>
-                                <div className="flex items-center">User ID {sortField === 'userID' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('Id')}>
+                                <div className="flex items-center">User ID {sortField === 'Id' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('userName')}>
-                                <div className="flex items-center">Username {sortField === 'userName' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('UserName')}>
+                                <div className="flex items-center">Username {sortField === 'UserName' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('fullName')}>
-                                <div className="flex items-center">Full Name {sortField === 'fullName' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('FullName')}>
+                                <div className="flex items-center">Full Name {sortField === 'FullName' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
                             </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('email')}>
-                                <div className="flex items-center">Email {sortField === 'email' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
+                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('Email')}>
+                                <div className="flex items-center">Email {sortField === 'Email' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
                             </th>
                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Roles</th>
                             <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>

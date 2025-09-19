@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import {
-  FaBoxOpen, FaChevronDown, FaChevronRight,
+import { FaBoxOpen, FaChevronDown, FaChevronRight,
   FaClipboardList, FaListUl, FaUtensils, FaHome, FaUsers, FaCog, FaPlus, FaEdit, FaTrash, FaFileAlt, FaUserShield,
-  FaTruck, FaIndustry
+  FaTruck, FaIndustry, FaUserFriends, FaUserTie, FaExchangeAlt, FaLeaf, FaBlender, FaCashRegister, FaTable, FaShoppingCart, FaTags // Add new icons
 } from 'react-icons/fa';
 import { NavLink } from 'react-router-dom';
 import { hasMenuPermission } from '../utils/permissionUtils';
 
-const menu = [
+const menu = [ // Re-add the hardcoded menu array
   {
     label: 'Dashboard',
     icon: FaHome,
     to: '/dashboard',
-    permissionKey: 'Dashboard'
+    permissionKey: 'DASHBOARD_VIEW'
   },
   {
     label: 'User Management',
@@ -22,29 +21,29 @@ const menu = [
         label: 'Users',
         icon: FaUsers,
         children: [
-          { label: 'User List', to: '/users/list', permissionKey: 'User List' },
-          { label: 'User Add', to: '/users/add', permissionKey: 'User Add' },
+          { label: 'User List', to: '/users/list', permissionKey: 'USER_VIEW' },
+          { label: 'User Add', to: '/users/add', permissionKey: 'USER_CREATE' },
         ],
       },
       {
         label: 'Roles',
         icon: FaUserShield,
         children: [
-          { label: 'Role List', to: '/roles/list', permissionKey: 'Role List' },
-          { label: 'Role Add', to: '/roles/add', permissionKey: 'Role Add' },
-          { label: 'User Access Role', to: '/roles/access_role', permissionKey: 'User Access Role' },
-          { label: 'Permission Setup', to: '/roles/permission_setup', permissionKey: 'Permission Setup' },
-          { label: 'Role Permissions', to: '/roles/role_permissions', permissionKey: 'Role Permissions' },
-          { label: 'Menu Assignments', to: '/roles/menu_assignments', permissionKey: 'Menu Assignments' },
-          { label: 'Menu Setup', to: '/roles/menu_setup', permissionKey: 'Menu Setup' },
+          { label: 'Role List', to: '/roles/list', permissionKey: 'ROLE_VIEW' },
+          { label: 'Role Add', to: '/roles/add', permissionKey: 'ROLE_CREATE' },
+          { label: 'User Access Role', to: '/roles/access_role', permissionKey: 'USER_ACCESS_ROLE_VIEW' },
+          { label: 'Permission Setup', to: '/roles/permission_setup', permissionKey: 'PERMISSION_SETUP_VIEW' },
+          { label: 'Role Permissions', to: '/roles/role_permissions', permissionKey: 'ROLE_PERMISSION_VIEW' },
+          { label: 'Menu Assignments', to: '/roles/menu_assignments', permissionKey: 'MENU_ASSIGNMENT_VIEW' },
+          { label: 'Menu Setup', to: '/roles/menu_setup', permissionKey: 'MENU_SETUP_VIEW' },
         ],
       },
       {
         label: 'Permissions',
         icon: FaCog,
         children: [
-          { label: 'Permission List', to: '/permissions/list', permissionKey: 'Permission List' },
-          { label: 'Permission Add', to: '/permissions/add', permissionKey: 'Permission Add' },
+          { label: 'Permission List', to: '/permissions/list', permissionKey: 'PERMISSION_VIEW' },
+          { label: 'Permission Add', to: '/permissions/add', permissionKey: 'PERMISSION_CREATE' },
         ],
       },
     ],
@@ -53,67 +52,158 @@ const menu = [
     label: 'Menu Management',
     icon: FaClipboardList,
     children: [
-      { label: 'Menu List', to: '/menus/list', permissionKey: 'Menu List' },
-      { label: 'Menu Add', to: '/menus/add', permissionKey: 'Menu Add' },
+      { label: 'Menu List', to: '/menus/list', permissionKey: 'MENU_VIEW' },
+      { label: 'Menu Add', to: '/menus/add', permissionKey: 'MENU_CREATE' },
     ],
   },
   {
     label: 'Category Management',
     icon: FaClipboardList,
     children: [
-      { label: 'Category List', to: '/categories/list', permissionKey: 'Category List' },
-      { label: 'Category Add', to: '/categories/add', permissionKey: 'Category Add' },
+      { label: 'Category List', to: '/categories/list', permissionKey: 'CATEGORY_VIEW' },
+      { label: 'Category Add', to: '/categories/add', permissionKey: 'CATEGORY_CREATE' },
     ],
   },
   {
     label: 'Unit Management',
     icon: FaListUl,
     children: [
-      { label: 'Unit List', to: '/units/list', permissionKey: 'Unit List' },
-      { label: 'Unit Add', to: '/units/add', permissionKey: 'Unit Add' },
+      { label: 'Unit List', to: '/units/list', permissionKey: 'UNIT_VIEW' },
+      { label: 'Unit Add', to: '/units/add', permissionKey: 'UNIT_CREATE' },
     ],
   },
   {
     label: 'Supplier Management',
     icon: FaTruck,
     children: [
-      { label: 'Supplier List', to: '/suppliers/list', permissionKey: 'Supplier List' },
-      { label: 'Supplier Add', to: '/suppliers/add', permissionKey: 'Supplier Add' },
+      { label: 'Supplier List', to: '/suppliers/list', permissionKey: 'SUPPLIER_VIEW' },
+      { label: 'Supplier Add', to: '/suppliers/add', permissionKey: 'SUPPLIER_CREATE' },
     ],
   },
   {
     label: 'Manufacturer Management',
     icon: FaIndustry,
     children: [
-      { label: 'Manufacturer List', to: '/manufacturers/list', permissionKey: 'Manufacturer List' },
-      { label: 'Manufacturer Add', to: '/manufacturers/add', permissionKey: 'Manufacturer Add' },
+      { label: 'Manufacturer List', to: '/manufacturers/list', permissionKey: 'MANUFACTURER_VIEW' },
+      { label: 'Manufacturer Add', to: '/manufacturers/add', permissionKey: 'MANUFACTURER_CREATE' },
     ],
   },
   {
     label: 'Product Management',
     icon: FaBoxOpen,
     children: [
-      { label: 'Product List', to: '/products/list', permissionKey: 'Product List' },
-      { label: 'Product Add', to: '/products/add', permissionKey: 'Product Add' },
+      { label: 'Product List', to: '/products/list', permissionKey: 'PRODUCT_VIEW' },
+      { label: 'Product Add', to: '/products/add', permissionKey: 'PRODUCT_CREATE' },
+    ],
+  },
+  {
+    label: 'Order Management',
+    icon: FaShoppingCart,
+    children: [
+      { label: 'Order List', to: '/orders/list', permissionKey: 'ORDER_VIEW' },
+      { label: 'Order Add', to: '/orders/add', permissionKey: 'ORDER_CREATE' },
+    ],
+  },
+  {
+    label: 'Table Management',
+    icon: FaTable,
+    children: [
+      { label: 'Table List', to: '/dining-tables/list', permissionKey: 'DINING_TABLE_VIEW' },
+      { label: 'Table Add', to: '/dining-tables/add', permissionKey: 'DINING_TABLE_CREATE' },
+    ],
+  },
+  // New Customer Management
+  {
+    label: 'Customer Management',
+    icon: FaUserFriends,
+    children: [
+      { label: 'Customer List', to: '/customers/list', permissionKey: 'CUSTOMER_VIEW' },
+      { label: 'Customer Add', to: '/customers/add', permissionKey: 'CUSTOMER_CREATE' },
+    ],
+  },
+  // New Staff Management
+  {
+    label: 'Staff Management',
+    icon: FaUserTie,
+    children: [
+      { label: 'Staff List', to: '/staff/list', permissionKey: 'STAFF_VIEW' },
+      { label: 'Staff Add', to: '/staff/add', permissionKey: 'STAFF_CREATE' },
+    ],
+  },
+  // New Inventory Management
+  {
+    label: 'Inventory Management',
+    icon: FaBoxOpen,
+    children: [
+      { label: 'Inventory Dashboard', to: '/inventory', permissionKey: 'INVENTORY_DASHBOARD_VIEW' },
+      { label: 'Inventory List', to: '/inventory/list', permissionKey: 'INVENTORY_VIEW' },
+      { label: 'Inventory Add', to: '/inventory/add', permissionKey: 'INVENTORY_CREATE' },
+      { label: 'Low Stock', to: '/low-stock', permissionKey: 'LOW_STOCK_VIEW' },
+      { label: 'Purchases', to: '/purchases/list', permissionKey: 'PURCHASE_VIEW' },
+    ],
+  },
+  // New Stock Transaction Management
+  {
+    label: 'Stock Transaction Management',
+    icon: FaExchangeAlt,
+    children: [
+      { label: 'Stock Transaction List', to: '/stock-transactions/list', permissionKey: 'STOCK_TRANSACTION_VIEW' },
+      { label: 'Stock Transaction Add', to: '/stock-transactions/add', permissionKey: 'STOCK_TRANSACTION_CREATE' },
+    ],
+  },
+  // New Ingredient Management
+  {
+    label: 'Ingredient Management',
+    icon: FaLeaf,
+    children: [
+      { label: 'Ingredient List', to: '/ingredients/list', permissionKey: 'INGREDIENT_VIEW' },
+      { label: 'Ingredient Add', to: '/ingredients/add', permissionKey: 'INGREDIENT_CREATE' },
+    ],
+  },
+  // New Product Ingredient Management
+  {
+    label: 'Product Ingredient Management',
+    icon: FaBlender,
+    children: [
+      { label: 'Product Ingredient List', to: '/product-ingredients/list', permissionKey: 'PRODUCT_INGREDIENT_VIEW' },
+      { label: 'Product Ingredient Add', to: '/product-ingredients/add', permissionKey: 'PRODUCT_INGREDIENT_CREATE' },
     ],
   },
   {
     label: 'Audit Logs',
     icon: FaFileAlt,
     to: '/audit-logs',
-    permissionKey: 'Audit Logs'
+    permissionKey: 'AUDIT_LOGS_VIEW'
   },
-  {
-    label: 'Inventory',
-    icon: FaBoxOpen,
-    to: '/inventory',
-    permissionKey: 'Inventory'
-  },
+
   {
     label: 'Kitchen',
     icon: FaUtensils,
     to: '/kitchen',
-    permissionKey: 'Kitchen'
+    permissionKey: 'KITCHEN_VIEW'
+  },
+  {
+    label: 'POS',
+    icon: FaCashRegister,
+    to: '/pos',
+    permissionKey: 'POS_VIEW'
+  },
+  // New Promotions Management
+  {
+    label: 'Promotions Management',
+    icon: FaTags,
+    children: [
+      { label: 'Promotion List', to: '/promotions/list', permissionKey: 'PROMOTION_VIEW' },
+      { label: 'Promotion Add', to: '/promotions/add', permissionKey: 'PROMOTION_CREATE' },
+    ],
+  },
+  // New Sales Management
+  {
+    label: 'Sales Management',
+    icon: FaShoppingCart,
+    children: [
+      { label: 'Sales List', to: '/sales/list', permissionKey: 'SALES_VIEW' },
+    ],
   },
 ];
 
@@ -161,18 +251,18 @@ export default function Sidebar({ collapsed }) {
               className="flex items-center justify-between px-2 py-1 rounded-md cursor-pointer hover:bg-white/10 transition"
             >
               <div className="flex items-center gap-3">
-                <SubIconComponent className="text-md text-white/80" />
+                <SubIconComponent className="text-md text-white" />
                 {!collapsed && <span>{subItem.label}</span>}
               </div>
               {subItem.children && !collapsed && (
-                <span className="text-white/70">
+                <span className="text-white">
                   {openMenus[subItem.label] ? <FaChevronDown /> : <FaChevronRight />}
                 </span>
               )}
             </div>
 
             {openMenus[subItem.label] && !collapsed && (
-              <div className="ml-4 mt-1 space-y-1 text-white/70">
+              <div className="ml-4 mt-1 space-y-1 text-white">
                 {subItem.children.map(renderSubMenu)}
               </div>
             )}
@@ -185,12 +275,12 @@ export default function Sidebar({ collapsed }) {
             to={subItem.to}
             className={({ isActive }) =>
               `block px-2 py-1 rounded transition ${
-                isActive ? 'bg-white/20 font-semibold' : 'hover:bg-white/10'
+                isActive ? 'bg-[#E65100] font-semibold' : 'hover:bg-[#E65100]'
               }`
             }
           >
             <div className="flex items-center gap-3">
-              <SubIconComponent className="text-md text-white/80" />
+              <SubIconComponent className="text-md text-white" />
               {!collapsed && <span>{subItem.label}</span>}
             </div>
           </NavLink>
@@ -207,18 +297,18 @@ export default function Sidebar({ collapsed }) {
             className="flex items-center justify-between px-3 py-2 rounded-md cursor-pointer hover:bg-white/10 transition"
           >
             <div className="flex items-center gap-3">
-              <IconComponent className="text-lg text-white/90" />
+              <IconComponent className="text-lg text-white" />
               {!collapsed && <span>{item.label}</span>}
             </div>
             {item.children && !collapsed && (
-              <span className="text-white/70">
+              <span className="text-white">
                 {openMenus[item.label] ? <FaChevronDown /> : <FaChevronRight />}
               </span>
             )}
           </div>
 
           {openMenus[item.label] && !collapsed && (
-            <div className="ml-6 mt-1 space-y-1 text-white/80">
+            <div className="ml-6 mt-1 space-y-1 text-white">
               {item.children.map(renderSubMenu)}
             </div>
           )}
@@ -231,12 +321,12 @@ export default function Sidebar({ collapsed }) {
           to={item.to}
           className={({ isActive }) =>
             `block px-3 py-2 rounded transition ${
-              isActive ? 'bg-white/20 font-semibold' : 'hover:bg-white/10'
+              isActive ? 'bg-[#E65100] font-semibold' : 'hover:bg-[#E65100]'
             }`
           }
         >
           <div className="flex items-center gap-3">
-            <IconComponent className="text-lg text-white/90" />
+            <IconComponent className="text-lg text-white" />
             {!collapsed && <span>{item.label}</span>}
           </div>
         </NavLink>
@@ -247,11 +337,9 @@ export default function Sidebar({ collapsed }) {
 
   return (
     <aside
-      className={`h-full overflow-y-auto text-white transition-all duration-300 ${
-        collapsed ? 'w-20' : 'w-64'
-      } bg-gradient-to-b from-indigo-700 to-purple-700 backdrop-blur-lg shadow-lg`}
+      className={`h-full overflow-y-auto text-white transition-all duration-300 ${collapsed ? 'w-20' : 'w-64'} shadow-lg`}
     >
-      <div className="p-4 font-bold text-xl text-center tracking-wide border-b border-white/10">
+      <div className="p-4 font-bold text-xl text-center tracking-wide border-b border-white/20">
         {collapsed ? '🍽️' : 'Restaurant'}
       </div>
 

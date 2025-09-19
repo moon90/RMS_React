@@ -3,10 +3,12 @@ import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
+
+import { useLayout } from '../context/LayoutContext';
 
 export default function MainLayout({ children }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useLayout();
   const sidebarWidth = collapsed ? 'w-20' : 'w-64';
   const contentPadding = collapsed ? 'pl-20' : 'pl-64';
   // eslint-disable-next-line no-unused-vars
@@ -22,9 +24,9 @@ export default function MainLayout({ children }) {
   }, []);
 
   return (
-  <div className="min-h-screen bg-gray-100">
+  <div className="min-h-screen bg-[#F5F5F5]">
     {/* Sidebar */}
-    <div className={`fixed top-0 left-0 h-screen bg-[#1f2937] text-white transition-all duration-300 ${sidebarWidth} z-40`}>
+    <div className={`fixed top-0 left-0 h-screen bg-[#E65100] text-white transition-all duration-300 ${sidebarWidth} z-40`}>
       <Sidebar collapsed={collapsed} />
     </div>
 

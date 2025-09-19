@@ -45,4 +45,8 @@ export const uploadProfilePicture = async (userId, formData) => { // Added
   });
 };
 
+export const toggleUserStatus = async (id, newStatus) => {
+  return await api.put(`/Users/${id}/status`, { status: newStatus });
+};
+
 

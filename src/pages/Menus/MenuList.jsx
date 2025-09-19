@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
 import MenuAdd from './MenuAdd';
 import { toast } from 'react-toastify';
@@ -16,7 +16,7 @@ const MenuList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('menuName'); // Changed to match backend DTO
+  const [sortField, setSortField] = useState('MenuName'); // Changed to match backend DTO
   const [sortDirection, setSortDirection] = useState('asc');
 
   const canCreateMenu = hasPermission('MENU_CREATE');
@@ -179,11 +179,11 @@ const MenuList = () => {
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('menuName')}
+                  onClick={() => handleSort('MenuName')}
                 >
                   <div className="flex items-center">
                     Menu Name
-                    {sortField === 'menuName' && (
+                    {sortField === 'MenuName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -192,11 +192,11 @@ const MenuList = () => {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('menuPath')}
+                  onClick={() => handleSort('MenuPath')}
                 >
                   <div className="flex items-center">
                     Menu Path
-                    {sortField === 'menuPath' && (
+                    {sortField === 'MenuPath' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -205,11 +205,11 @@ const MenuList = () => {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('menuIcon')}
+                  onClick={() => handleSort('MenuIcon')}
                 >
                   <div className="flex items-center">
                     Menu Icon
-                    {sortField === 'menuIcon' && (
+                    {sortField === 'MenuIcon' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -218,11 +218,11 @@ const MenuList = () => {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('controllerName')}
+                  onClick={() => handleSort('ControllerName')}
                 >
                   <div className="flex items-center">
                     Controller Name
-                    {sortField === 'controllerName' && (
+                    {sortField === 'ControllerName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -231,11 +231,11 @@ const MenuList = () => {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('actionName')}
+                  onClick={() => handleSort('ActionName')}
                 >
                   <div className="flex items-center">
                     Action Name
-                    {sortField === 'actionName' && (
+                    {sortField === 'ActionName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -244,11 +244,11 @@ const MenuList = () => {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('moduleName')}
+                  onClick={() => handleSort('ModuleName')}
                 >
                   <div className="flex items-center">
                     Module Name
-                    {sortField === 'moduleName' && (
+                    {sortField === 'ModuleName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -257,11 +257,11 @@ const MenuList = () => {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!loading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('displayOrder')}
+                  onClick={() => handleSort('DisplayOrder')}
                 >
                   <div className="flex items-center">
                     Display Order
-                    {sortField === 'displayOrder' && (
+                    {sortField === 'DisplayOrder' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>

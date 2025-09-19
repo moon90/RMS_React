@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
 import RoleAdd from './RoleAdd';
 import { toast } from 'react-toastify';
-import { getAllRoles, deleteRole } from '../../services/userRoleManagementService.js';
+import { getAllRoles, deleteRole, toggleRoleStatus } from '../../services/userRoleManagementService.js';
 import { hasPermission } from '../../utils/permissionUtils';
 
 export default function RoleList() {
@@ -13,7 +13,7 @@ export default function RoleList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('roleName');
+  const [sortField, setSortField] = useState('RoleName');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filters, setFilters] = useState({
     status: '',
@@ -151,6 +151,66 @@ export default function RoleList() {
     );
   };
 
+  const handleToggleStatus = async (id, currentStatus) => {
+    if (!canUpdateRole) {
+      toast.error('You do not have permission to change role status.');
+      return;
+    }
+
+    const newStatus = !currentStatus;
+    const actionText = newStatus ? 'activate' : 'deactivate';
+
+    toast(
+      ({ closeToast }) => (
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-gray-800 mb-2">
+            Are you sure you want to {actionText} this role?
+          </span>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const response = await toggleRoleStatus(id, newStatus);
+                  if (response.data.isSuccess) {
+                    toast.success(`Role ${actionText}d successfully`);
+                    fetchRoles();
+                  } else {
+                    toast.error(response.data.message || `Failed to ${actionText} role`);
+                  }
+                } catch (error) {
+                  if (error.response && error.response.data && error.response.data.message) {
+                    toast.error(error.response.data.message);
+                  } else {
+                    toast.error(`An error occurred while trying to ${actionText} the role.`);
+                  }
+                  console.error(error);
+                } finally {
+                  closeToast();
+                }
+              }}
+              className={`px-3 py-1 text-sm text-white rounded ${
+                newStatus ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {newStatus ? 'Activate' : 'Deactivate'}
+            </button>
+            <button
+              onClick={closeToast}
+              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        autoClose: false,
+        closeOnClick: false,
+        draggable: false,
+      }
+    );
+  };
+
   const handleSave = () => {
     setIsEditModalOpen(false);
     fetchRoles();
@@ -223,11 +283,11 @@ export default function RoleList() {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
               <th 
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('roleName')}
+                onClick={() => handleSort('RoleName')}
               >
                 <div className="flex items-center">
                   Role Name
-                  {sortField === 'roleName' && (
+                  {sortField === 'RoleName' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -237,11 +297,11 @@ export default function RoleList() {
               </th>
               <th 
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('description')}
+                onClick={() => handleSort('Description')}
               >
                 <div className="flex items-center">
                   Description
-                  {sortField === 'description' && (
+                  {sortField === 'Description' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -251,11 +311,11 @@ export default function RoleList() {
               </th>
               <th 
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('createdDate')}
+                onClick={() => handleSort('CreatedDate')}
               >
                 <div className="flex items-center">
                   Created Date
-                  {sortField === 'createdDate' && (
+                  {sortField === 'CreatedDate' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -270,7 +330,7 @@ export default function RoleList() {
           <tbody className="bg-white divide-y divide-gray-200">
             {isLoading ? (
               <tr>
-                <td colSpan="8" className="text-center py-4">Loading...</td>
+                <td colSpan="6" className="text-center py-4">Loading...</td>
               </tr>
             ) : roles.length > 0 ? (
               roles.map((role, idx) => (
@@ -299,6 +359,23 @@ export default function RoleList() {
                           </svg>
                         </button>
                       )}
+                      {canUpdateRole && (
+                        <button
+                          onClick={() => handleToggleStatus(role.roleID, role.status)}
+                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+                          aria-label="Toggle active status"
+                        >
+                          {role.status ? (
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
                       {canDeleteRole && (
                         <button 
                           onClick={() => handleDelete(role.roleID)}
@@ -316,7 +393,7 @@ export default function RoleList() {
               ))
             ) : (
               <tr>
-                <td colSpan="8" className="text-center py-4">No roles found.</td>
+                <td colSpan="6" className="text-center py-4">No roles found.</td>
               </tr>
             )}
           </tbody>

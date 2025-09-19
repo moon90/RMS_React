@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
 import UserAdd from './UserAdd.jsx';
 import { toast } from 'react-toastify';
-import { getAllUsers, deleteUser } from '../../services/userService.js';
+import { getAllUsers, deleteUser, toggleUserStatus } from '../../services/userService.js';
 import { hasPermission } from '../../utils/permissionUtils';
 
 export default function UserList() {
@@ -13,7 +13,7 @@ export default function UserList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('fullName');
+  const [sortField, setSortField] = useState('FullName');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filters, setFilters] = useState({
     status: '',
@@ -33,7 +33,7 @@ export default function UserList() {
         pageSize: itemsPerPage,
         searchQuery: searchTerm,
         sortColumn: sortField,
-        sortDirection: sortDirection,
+        sortDirection: sortDirection === 'desc' ? 'desc' : 'asc', // Ensure it's always 'asc' or 'desc'
         status: filters.status === 'active' ? true : filters.status === 'inactive' ? false : null,
         role: filters.role || null,
       };
@@ -153,6 +153,66 @@ export default function UserList() {
     );
   };
 
+  const handleToggleStatus = async (id, currentStatus) => {
+    if (!canUpdateUser) {
+      toast.error('You do not have permission to change user status.');
+      return;
+    }
+
+    const newStatus = !currentStatus;
+    const actionText = newStatus ? 'activate' : 'deactivate';
+
+    toast(
+      ({ closeToast }) => (
+        <div className="flex flex-col">
+          <span className="text-sm font-medium text-gray-800 mb-2">
+            Are you sure you want to {actionText} this user?
+          </span>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const response = await toggleUserStatus(id, newStatus);
+                  if (response.data.isSuccess) {
+                    toast.success(`User ${actionText}d successfully`);
+                    fetchUsers();
+                  } else {
+                    toast.error(response.data.message || `Failed to ${actionText} user`);
+                  }
+                } catch (error) {
+                  if (error.response && error.response.data && error.response.data.message) {
+                    toast.error(error.response.data.message);
+                  } else {
+                    toast.error(`An error occurred while trying to ${actionText} the user.`);
+                  }
+                  console.error(error);
+                } finally {
+                  closeToast();
+                }
+              }}
+              className={`px-3 py-1 text-sm text-white rounded ${
+                newStatus ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+              }`}
+            >
+              {newStatus ? 'Activate' : 'Deactivate'}
+            </button>
+            <button
+              onClick={closeToast}
+              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ),
+      {
+        autoClose: false,
+        closeOnClick: false,
+        draggable: false,
+      }
+    );
+  };
+
   const handleSave = () => {
     setIsEditModalOpen(false);
     fetchUsers();
@@ -224,11 +284,11 @@ export default function UserList() {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
               <th 
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('fullName')}
+                onClick={() => handleSort('FullName')}
               >
                 <div className="flex items-center">
                   Full Name
-                  {sortField === 'fullName' && (
+                  {sortField === 'FullName' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -238,11 +298,11 @@ export default function UserList() {
               </th>
               <th 
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('userName')}
+                onClick={() => handleSort('UserName')}
               >
                 <div className="flex items-center">
                   Username
-                  {sortField === 'userName' && (
+                  {sortField === 'UserName' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -252,11 +312,11 @@ export default function UserList() {
               </th>
               <th 
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('email')}
+                onClick={() => handleSort('Email')}
               >
                 <div className="flex items-center">
                   Email
-                  {sortField === 'email' && (
+                  {sortField === 'Email' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -266,11 +326,11 @@ export default function UserList() {
               </th>
               <th 
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('phone')}
+                onClick={() => handleSort('Phone')}
               >
                 <div className="flex items-center">
                   Phone
-                  {sortField === 'phone' && (
+                  {sortField === 'Phone' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -321,6 +381,23 @@ export default function UserList() {
                           <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5h-2m-2 0V7a2 2 0 00-2-2H11a2 2 0 00-2 2v5a2 2 0 002 2h5M9 12h1m-1 4h1" />
                           </svg>
+                        </button>
+                      )}
+                      {canUpdateUser && ( // New status toggle button
+                        <button
+                          onClick={() => handleToggleStatus(user.userID, user.status)}
+                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
+                          aria-label="Toggle active status"
+                        >
+                          {user.status ? (
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
                         </button>
                       )}
                       {canDeleteUser && (

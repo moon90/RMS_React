@@ -37,6 +37,7 @@ const ProductEdit = () => {
   const [supplierID, setSupplierID] = useState('');
   const [manufacturerID, setManufacturerID] = useState('');
   const [expireDate, setExpireDate] = useState('');
+  const [stockQuantity, setStockQuantity] = useState(0); // Added for read-only display
   const [status, setStatus] = useState(true);
   const [categories, setCategories] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -86,15 +87,16 @@ const ProductEdit = () => {
           setProductPrice(product.productPrice);
           setCostPrice(product.costPrice);
           setProductBarcode(product.productBarcode);
-          setProductImagePreview(product.imageUrl); // Set initial preview from URL
-          setThumbnailImagePreview(product.thumbnailUrl); // Set initial preview from URL
-          setExistingProductImageUrl(product.imageUrl); // Store existing URL
-          setExistingProductThumbnailUrl(product.thumbnailUrl); // Store existing URL
-          setCategoryID(product.categoryID || '');
+          setProductImagePreview(product.productImage); // Set initial preview from Base64
+          setThumbnailImagePreview(product.thumbnailImage); // Set initial preview from Base64
+          setExistingProductImageUrl(product.productImage); // Store existing Base64
+          setExistingProductThumbnailUrl(product.thumbnailImage); // Store existing Base64
+          setCategoryID(product.categoryID ? String(product.categoryID) : '');
           setSupplierID(product.supplierID || '');
           setManufacturerID(product.manufacturerID || '');
           setExpireDate(product.expireDate ? new Date(product.expireDate).toISOString().split('T')[0] : '');
           setStatus(product.status);
+          setStockQuantity(product.stockQuantity || 0); // Set stock quantity for read-only display, default to 0 if null/undefined
         } else {
           toast.error(response.data.message || 'Failed to fetch product.');
         }
@@ -167,23 +169,11 @@ const ProductEdit = () => {
       // Handle product image
       if (productImageFile) {
         formData.append('productImageFile', productImageFile);
-      } else if (productImagePreview === null && existingProductImageUrl) {
-        // If image was cleared and there was an existing image, send empty string to signal deletion
-        formData.append('imageUrl', '');
-      } else if (existingProductImageUrl) {
-        // If no new file and no clear, keep existing URL
-        formData.append('imageUrl', existingProductImageUrl);
-      }
+      } 
 
       // Handle thumbnail image
       if (thumbnailImageFile) {
         formData.append('thumbnailImageFile', thumbnailImageFile);
-      } else if (thumbnailImagePreview === null && existingProductThumbnailUrl) {
-        // If thumbnail was cleared and there was an existing thumbnail, send empty string to signal deletion
-        formData.append('thumbnailUrl', '');
-      } else if (existingProductThumbnailUrl) {
-        // If no new file and no clear, keep existing URL
-        formData.append('thumbnailUrl', existingProductThumbnailUrl);
       }
 
       formData.append('categoryID', categoryID ? parseInt(categoryID) : '');
@@ -283,6 +273,17 @@ const ProductEdit = () => {
               {errors.productBarcode && <p className="text-red-500 text-xs mt-1">{errors.productBarcode}</p>}
             </div>
             <div>
+              <label htmlFor="stockQuantity" className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
+              <input
+                type="number"
+                id="stockQuantity"
+                name="stockQuantity"
+                value={stockQuantity}
+                readOnly
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 focus:outline-none"
+              />
+            </div>
+            <div>
               <label htmlFor="productImage" className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
               <input
                 type="file"
@@ -294,7 +295,7 @@ const ProductEdit = () => {
               />
               {errors.productImage && <p className="text-red-500 text-xs mt-1">{errors.productImage}</p>}
               <div className="mt-2 flex items-center space-x-2">
-                <img src={productImagePreview || existingProductImageUrl || '/images/placeholder.png'} alt="Product Preview" className="h-32 w-32 object-cover" />
+                <img src={productImagePreview || '/images/placeholder.png'} alt="Product Preview" className="h-32 w-32 object-cover" onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder.png'; }} />
                 {(productImagePreview || existingProductImageUrl) && (
                   <button
                     type="button"
@@ -318,7 +319,7 @@ const ProductEdit = () => {
               />
               {errors.thumbnailImage && <p className="text-red-500 text-xs mt-1">{errors.thumbnailImage}</p>}
               <div className="mt-2 flex items-center space-x-2">
-                <img src={thumbnailImagePreview || existingProductThumbnailUrl || '/images/placeholder.png'} alt="Thumbnail Preview" className="h-32 w-32 object-cover" />
+                                <img src={thumbnailImagePreview || existingProductThumbnailUrl || '/images/placeholder.png'} alt="Thumbnail Preview" className="h-32 w-32 object-cover" onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder.png'; }} />
                 {(thumbnailImagePreview || existingProductThumbnailUrl) && (
                   <button
                     type="button"
@@ -341,7 +342,7 @@ const ProductEdit = () => {
               >
                 <option value="">Select Category</option>
                 {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.categoryName}</option>
+                  <option key={cat.categoryID} value={cat.categoryID}>{cat.categoryName}</option>
                 ))}
               </select>
               {errors.categoryID && <p className="text-red-500 text-xs mt-1">{errors.categoryID}</p>}

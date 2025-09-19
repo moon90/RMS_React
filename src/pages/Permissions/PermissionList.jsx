@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
 import PermissionAdd from './PermissionAdd.jsx';
 import { toast } from 'react-toastify';
@@ -13,7 +13,7 @@ export default function PermissionList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('permissionName');
+  const [sortField, setSortField] = useState('PermissionName');
   const [sortDirection, setSortDirection] = useState('asc');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -32,11 +32,11 @@ export default function PermissionList() {
         sortDirection: sortDirection,
       };
       const response = await getAllPermissions(params);
-      if (response.isSuccess) {
-        setPermissions(response.data.items);
-        setTotalPermissions(response.data.totalRecords || 0);
+      if (response.data.isSuccess) {
+        setPermissions(response.data.data.items);
+        setTotalPermissions(response.data.data.totalRecords || 0);
       } else {
-        toast.error(response.message || 'Failed to fetch permissions');
+        toast.error(response.data.message || 'Failed to fetch permissions');
         setPermissions([]);
         setTotalPermissions(0);
       }
@@ -184,11 +184,11 @@ export default function PermissionList() {
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('permissionName')}
+                  onClick={() => handleSort('PermissionName')}
                 >
                   <div className="flex items-center">
                     Permission Name
-                    {sortField === 'permissionName' && (
+                    {sortField === 'PermissionName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -197,11 +197,11 @@ export default function PermissionList() {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('permissionKey')}
+                  onClick={() => handleSort('PermissionKey')}
                 >
                   <div className="flex items-center">
                     Permission Key
-                    {sortField === 'permissionKey' && (
+                    {sortField === 'PermissionKey' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -210,11 +210,11 @@ export default function PermissionList() {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('controllerName')}
+                  onClick={() => handleSort('ControllerName')}
                 >
                   <div className="flex items-center">
                     Controller Name
-                    {sortField === 'controllerName' && (
+                    {sortField === 'ControllerName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -223,11 +223,11 @@ export default function PermissionList() {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('actionName')}
+                  onClick={() => handleSort('ActionName')}
                 >
                   <div className="flex items-center">
                     Action Name
-                    {sortField === 'actionName' && (
+                    {sortField === 'ActionName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>
@@ -236,11 +236,11 @@ export default function PermissionList() {
                 </th>
                 <th
                   className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('moduleName')}
+                  onClick={() => handleSort('ModuleName')}
                 >
                   <div className="flex items-center">
                     Module Name
-                    {sortField === 'moduleName' && (
+                    {sortField === 'ModuleName' && (
                       <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
                       </svg>

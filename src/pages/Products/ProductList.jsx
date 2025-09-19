@@ -16,7 +16,7 @@ const ProductList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('productName');
+  const [sortField, setSortField] = useState('ProductName');
   const [sortDirection, setSortDirection] = useState('asc');
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -321,11 +321,11 @@ const ProductList = () => {
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Image</th>
               <th
                 className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('productName')}
+                onClick={() => handleSort('ProductName')}
               >
                 <div className="flex items-center">
                   Product Name
-                  {sortField === 'productName' && (
+                  {sortField === 'ProductName' && (
                     <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
                         d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
@@ -333,10 +333,11 @@ const ProductList = () => {
                   )}
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Price</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Category</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Supplier</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Manufacturer</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('ProductPrice')}>Price</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('Category.CategoryName')}>Category</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('Supplier.SupplierName')}>Supplier</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('Manufacturer.ManufacturerName')}>Manufacturer</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('StockQuantity')}>Stock Quantity</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
               <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
             </tr>
@@ -352,9 +353,10 @@ const ProductList = () => {
                   <td className="px-4 py-4 text-sm text-gray-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
                   <td className="px-4 py-4">
                     <img 
-                      src={product.thumbnailUrl || '/images/placeholder.png'} 
+                      src={product.thumbnailImage || '/images/placeholder.png'} 
                       alt={product.productName} 
                       className="w-16 h-16 object-cover rounded-md"
+                      onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder.png'; }}
                     />
                   </td>
                   <td className="px-4 py-4 text-sm text-gray-700">{product.productName}</td>
@@ -362,6 +364,7 @@ const ProductList = () => {
                   <td className="px-4 py-4 text-sm text-gray-700">{product.categoryName}</td>
                   <td className="px-4 py-4 text-sm text-gray-700">{product.supplierName}</td>
                   <td className="px-4 py-4 text-sm text-gray-700">{product.manufacturerName}</td>
+                  <td className="px-4 py-4 text-sm text-gray-700">{product.stockQuantity || 0}</td>
                   <td className="px-4 py-4 text-sm text-gray-700">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -390,11 +393,17 @@ const ProductList = () => {
                         <button 
                           onClick={() => handleToggleStatus(product.id, product.status)}
                           className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Toggle status"
+                          aria-label="Toggle active status"
                         >
-                          <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
+                          {product.status ? ( // Change icon based on active status
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          )}
                         </button>
                       )}
                       {canDelete && (

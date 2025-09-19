@@ -1,3 +1,4 @@
+import React from 'react';
 import { hasPermission } from '../../utils/permissionUtils';
 
 export default function MenuSetup() {

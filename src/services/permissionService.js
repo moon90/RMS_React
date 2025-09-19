@@ -3,7 +3,7 @@ import apiClient from '../utils/axios';
 export const getAllPermissions = async (params) => {
   try {
     const response = await apiClient.get('/Permission', { params });
-    return response.data;
+    return response;
   } catch (error) {
     console.error('Error in getAllPermissions:', error);
     throw error;

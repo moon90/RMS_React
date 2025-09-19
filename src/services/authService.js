@@ -1,8 +1,9 @@
 // src/services/authService.js
 import axios from 'axios';
+import config from '../config';
 
 const authApi = axios.create({
-  baseURL: 'https://localhost:7083/api', // Your backend API base URL
+  baseURL: config.API_BASE_URL, // Your backend API base URL
 });
 
 export const login = async (userName, password) => {
