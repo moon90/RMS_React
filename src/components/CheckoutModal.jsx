@@ -223,5 +223,3 @@ const CheckoutModal = ({
 };
 
 export default CheckoutModal;
-
-export default CheckoutModal;

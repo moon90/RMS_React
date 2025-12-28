@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { debounce } from 'lodash';
 import { toast } from 'react-toastify';
 import { fetchUsers, fetchRoles, assignRolesToUser, unassignRolesFromUser } from '../../services/userRoleManagementService';
+import ProfessionalPagination from '../../components/ProfessionalPagination';
 import UserRoleModal from '../../components/UserRoleModal';
 
 const UserAccessRole = () => {
@@ -78,6 +79,15 @@ const UserAccessRole = () => {
         setCurrentPage(1); // Reset to first page on new sort
     };
 
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
+
+    const handleRowsPerPageChange = (newRowsPerPage) => {
+        setItemsPerPage(newRowsPerPage);
+        setCurrentPage(1);
+    };
+
     const handleEditRoles = (user) => {
         setSelectedUser(user);
         setIsModalOpen(true);
@@ -127,23 +137,6 @@ const UserAccessRole = () => {
                     <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
-                </div>
-
-                <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-                    <label className="text-sm text-gray-700">Items per page:</label>
-                    <select
-                        className="p-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={itemsPerPage}
-                        onChange={(e) => {
-                            setItemsPerPage(Number(e.target.value));
-                            setCurrentPage(1);
-                        }}
-                        disabled={loading}
-                    >
-                        {[5, 10, 25, 50].map(number => (
-                            <option key={number} value={number}>{number}</option>
-                        ))}
-                    </select>
                 </div>
             </div>
 
@@ -207,45 +200,15 @@ const UserAccessRole = () => {
             </div>
 
             {/* Pagination Controls */}
-            <div className="mt-6 flex flex-col md:flex-row justify-between items-center">
-                <div className="mb-4 md:mb-0 text-sm text-gray-700">
-                    Showing <span className="font-medium">{totalUsers === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(currentPage * itemsPerPage, totalUsers)}</span> of{' '}
-                    <span className="font-medium">{totalUsers}</span> entries
-                </div>
-                <div className="flex items-center">
-                    <button
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1 || loading}
-                        className="px-3 py-1 rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Previous
-                    </button>
-                    <div className="mx-2 flex items-center">
-                        {Array.from({ length: totalPages }, (_, i) => (
-                            <button
-                                key={i + 1}
-                                onClick={() => setCurrentPage(i + 1)}
-                                className={`mx-1 px-3 py-1 text-sm rounded-md ${
-                                    currentPage === i + 1
-                                        ? 'bg-blue-500 text-white'
-                                        : 'border border-gray-300 text-gray-700 hover:bg-gray-100'
-                                }`}
-                                disabled={loading}
-                            >
-                                {i + 1}
-                            </button>
-                        ))}
-                    </div>
-                    <button
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages || loading}
-                        className="px-3 py-1 rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
+            {!loading && (
+              <ProfessionalPagination
+                count={totalUsers}
+                page={currentPage}
+                rowsPerPage={itemsPerPage}
+                onPageChange={handlePageChange}
+                onRowsPerPageChange={handleRowsPerPageChange}
+              />
+            )}
 
             {isModalOpen && selectedUser && (
                 <UserRoleModal

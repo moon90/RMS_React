@@ -7,6 +7,7 @@ import { confirmAlert } from 'react-confirm-alert';
 import 'react-confirm-alert/src/react-confirm-alert.css';
 import promotionService from '../../services/promotionService';
 import { hasMenuPermission } from '../../utils/permissionUtils';
+import ProfessionalPagination from '../../components/ProfessionalPagination';
 
 const PromotionList = () => {
     const [promotions, setPromotions] = useState([]);
@@ -81,6 +82,15 @@ const PromotionList = () => {
             setSortField(field);
             setSortDirection('asc');
         }
+    };
+
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
+
+    const handleRowsPerPageChange = (newRowsPerPage) => {
+        setItemsPerPage(newRowsPerPage);
+        setCurrentPage(1);
     };
 
     const handleDelete = (id) => {
@@ -308,68 +318,15 @@ const PromotionList = () => {
             </div>
 
             {/* Pagination */}
-            <div className="mt-6 flex flex-col md:flex-row justify-between items-center">
-                <div className="mb-4 md:mb-0">
-                    <span className="text-sm text-[#424242]">
-                        Showing <span className="font-medium">{totalPromotions === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</span> to{' '}
-                        <span className="font-medium">
-                            {totalPromotions === 0 ? 0 : Math.min(currentPage * itemsPerPage, totalPromotions)}
-                        </span> of <span className="font-medium">{totalPromotions}</span> entries
-                    </span>
-                </div>
-
-                <div className="flex items-center">
-                    <label className="mr-2 text-sm text-[#424242]">Items per page:</label>
-                    <select
-                        className="p-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={itemsPerPage}
-                        onChange={(e) => {
-                            setItemsPerPage(Number(e.target.value));
-                            setCurrentPage(1);
-                        }}
-                        disabled={isLoading}
-                    >
-                        {[5, 10, 25, 50].map(number => (
-                            <option key={number} value={number}>{number}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div className="mt-4 md:mt-0 flex items-center">
-                    <button
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1 || isLoading}
-                        className="px-3 py-1 rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Previous
-                    </button>
-
-                    <div className="mx-2 flex items-center">
-                        {Array.from({ length: Math.ceil(totalPromotions / itemsPerPage) }, (_, i) => (
-                            <button
-                                key={i + 1}
-                                onClick={() => setCurrentPage(i + 1)}
-                                className={`mx-1 px-3 py-1 text-sm rounded-md ${
-                                    currentPage === i + 1
-                                        ? 'bg-[#E65100] text-white'
-                                        : 'border border-gray-300 text-[#424242] hover:bg-gray-100'
-                                }`}
-                                disabled={isLoading}
-                            >
-                                {i + 1}
-                            </button>
-                        ))}
-                    </div>
-
-                    <button
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(totalPromotions / itemsPerPage)))}
-                        disabled={currentPage === Math.ceil(totalPromotions / itemsPerPage) || isLoading}
-                        className="px-3 py-1 rounded-md border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        Next
-                    </button>
-                </div>
-            </div>
+            {!isLoading && (
+                <ProfessionalPagination
+                    count={totalPromotions}
+                    page={currentPage}
+                    rowsPerPage={itemsPerPage}
+                    onPageChange={handlePageChange}
+                    onRowsPerPageChange={handleRowsPerPageChange}
+                />
+            )}
         </div>
     );
 };

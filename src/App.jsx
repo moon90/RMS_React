@@ -140,7 +140,8 @@ function App() {
             <Route path="/ingredients/list" element={<ProtectedRoute><IngredientList /></ProtectedRoute>} />
             <Route path="/ingredients/add" element={<ProtectedRoute><IngredientAdd /></ProtectedRoute>} />
             <Route path="/ingredients/edit/:id" element={<ProtectedRoute><IngredientEdit /></ProtectedRoute>} />
-            <Route path="/ingredients/list" element={<ProtectedRoute><ProductIngredientList /></ProtectedRoute>} />
+            <Route path="/product-ingredients/list" element={<ProtectedRoute><ProductIngredientList /></ProtectedRoute>} />
+
             <Route path="/product-ingredients/add" element={<ProtectedRoute><ProductIngredientAdd /></ProtectedRoute>} />
             <Route path="/product-ingredients/edit/:id" element={<ProtectedRoute><ProductIngredientEdit /></ProtectedRoute>} />
             <Route path="/orders/list" element={<ProtectedRoute><OrderList /></ProtectedRoute>} />

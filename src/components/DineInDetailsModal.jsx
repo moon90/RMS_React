@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 const DineInDetailsModal = ({ isOpen, onClose, onSave, diningTables, staffMembers }) => {
   const [table, setTable] = React.useState('');
