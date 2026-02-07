@@ -1,13 +1,19 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
+import { useAuth } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children }) => {
-  const loggedIn = !!localStorage.getItem('accessToken');
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
 
-  if (!loggedIn) {
-    return <Navigate to="/login" />;
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <MainLayout>{children}</MainLayout>;

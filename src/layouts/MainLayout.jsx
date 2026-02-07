@@ -24,22 +24,30 @@ export default function MainLayout({ children }) {
   }, []);
 
   return (
-  <div className="min-h-screen bg-[#F5F5F5]">
-    {/* Sidebar */}
-    <div className={`fixed top-0 left-0 h-screen bg-[#E65100] text-white transition-all duration-300 ${sidebarWidth} z-40`}>
-      <Sidebar collapsed={collapsed} />
-    </div>
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar */}
+      <div className={`fixed top-0 left-0 h-screen transition-all duration-300 z-40 ${sidebarWidth}`}>
+        <Sidebar collapsed={collapsed} />
+      </div>
 
-    {/* Fixed Header */}
-    <div className={`fixed top-0 left-0 w-full transition-all duration-300 z-30 ${contentPadding}`}>
-      <Header onToggle={() => setCollapsed(!collapsed)} />
-    </div>
+      {/* Main Area */}
+      <div className={`flex-1 flex flex-col transition-all duration-300 ${contentPadding}`}>
+        {/* Fixed Header */}
+        <div className="sticky top-0 z-30 bg-slate-50/80 backdrop-blur-md border-b border-slate-200/60">
+          <Header onToggle={() => setCollapsed(!collapsed)} />
+        </div>
 
-    {/* Main Content (below header) */}
-    <div className={`transition-all duration-300 ${contentPadding} pt-20`}>
-      <main className="p-6">{children}</main>
-      <Footer />
+        {/* Main Content */}
+        <main className="p-4 md:p-8 lg:p-10 max-w-[1600px] mx-auto w-full flex-1">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {children}
+          </div>
+        </main>
+
+        <div className="mt-auto">
+          <Footer />
+        </div>
+      </div>
     </div>
-  </div>
   );
 }

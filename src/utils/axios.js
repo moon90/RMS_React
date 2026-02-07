@@ -24,17 +24,28 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const requestUrl = originalRequest?.url || '';
+    const isAuthEndpoint =
+      requestUrl.includes('/Auth/login') ||
+      requestUrl.includes('/Auth/refresh-token');
     if (error.response) {
-      if (error.response.status === 401 && !originalRequest._retry) {
+      if (error.response.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
         originalRequest._retry = true;
         try {
           const access_token = localStorage.getItem('accessToken');
           const refresh_token = localStorage.getItem('refreshToken');
           const response = await refreshToken(access_token, refresh_token);
-          if (response.data.isSuccess) {
-            localStorage.setItem('accessToken', response.data.data.accessToken);
-            localStorage.setItem('refreshToken', response.data.data.refreshToken);
-            api.defaults.headers.common['Authorization'] = 'Bearer ' + response.data.data.accessToken;
+          const refreshPayload = response.data?.data ?? response.data;
+          const refreshedAccessToken = refreshPayload?.accessToken ?? response.data?.accessToken;
+          const refreshedRefreshToken = refreshPayload?.refreshToken ?? response.data?.refreshToken;
+          if (response.data?.isSuccess || refreshedAccessToken) {
+            if (refreshedAccessToken) {
+              localStorage.setItem('accessToken', refreshedAccessToken);
+              api.defaults.headers.common['Authorization'] = 'Bearer ' + refreshedAccessToken;
+            }
+            if (refreshedRefreshToken) {
+              localStorage.setItem('refreshToken', refreshedRefreshToken);
+            }
             return api(originalRequest);
           }
         } catch (refreshError) {
@@ -42,12 +53,15 @@ api.interceptors.response.use(
         }
       }
 
-      // Redirect to login for 401 (if refresh failed) or 403
-      if (error.response.status === 401 || error.response.status === 403) {
+      // Redirect to login for 401 (if refresh failed)
+      if (error.response.status === 401 && !isAuthEndpoint) {
         console.error('Authentication error, redirecting to login...');
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
         window.location.href = '/login';
+      }
+
+      // For 403, keep tokens and let the caller decide how to handle access.
+      if (error.response.status === 403) {
+        console.error('Authorization error (403).');
       }
     }
 

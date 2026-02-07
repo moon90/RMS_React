@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
-import { getAllCategories, deleteCategory, toggleCategoryStatus } from '../../services/categoryService';
+import { getAllCategories, deleteCategory, toggleCategoryStatus, exportCategories, importCategories } from '../../services/categoryService';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
 import ProfessionalPagination from '../../components/ProfessionalPagination';
 import { toast } from 'react-toastify';
+import showCustomConfirmAlert from '../../components/CustomConfirmAlert';
 
 const CategoryList = () => {
   const [categories, setCategories] = useState([]);
@@ -17,6 +18,10 @@ const CategoryList = () => {
   const [sortDirection, setSortDirection] = useState('asc');
   const [statusFilter, setStatusFilter] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [inputValue, setInputValue] = useState('');
+  const [importFile, setImportFile] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importErrors, setImportErrors] = useState([]);
 
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -25,6 +30,10 @@ const CategoryList = () => {
   const canCreate = user?.permissions?.includes('CATEGORY_CREATE');
   const canEdit = user?.permissions?.includes('CATEGORY_UPDATE');
   const canDelete = user?.permissions?.includes('CATEGORY_DELETE');
+  // const canExport = true; // Temporarily set to true for debugging
+  // const canImport = true; // Temporarily set to true for debugging
+  const canExport = user?.permissions?.includes('CATEGORY_EXPORT');
+ const canImport = user?.permissions?.includes('CATEGORY_IMPORT');
 
   console.log('statusFilter before fetchCategories:', statusFilter);
   const fetchCategories = useCallback(async () => {
@@ -36,6 +45,7 @@ const CategoryList = () => {
         searchQuery: searchTerm,
         sortColumn: sortField,
         sortDirection: sortDirection,
+        status: statusFilter === '' ? null : statusFilter === 'true',
       };
       const response = await getAllCategories(params);
       if (response.data.isSuccess) {
@@ -67,10 +77,12 @@ const CategoryList = () => {
   const debouncedSearch = useCallback(debounce((value) => {
     setSearchTerm(value);
     setCurrentPage(1);
-  }, 300), []);
+  }, 2000), []);
 
   const handleSearchChange = (event) => {
-    debouncedSearch(event.target.value);
+    const { value } = event.target;
+    setInputValue(value);
+    debouncedSearch(value);
   };
 
   const handleSort = (field) => {
@@ -101,122 +113,207 @@ const CategoryList = () => {
     const newStatus = !currentStatus;
     const actionText = newStatus ? 'activate' : 'deactivate';
 
-    toast(
-      ({ closeToast }) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-800 mb-2">
-            Are you sure you want to {actionText} this category?
-          </span>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const response = await toggleCategoryStatus(id, newStatus);
-                  if (response.data.isSuccess) {
-                    toast.success(`Category ${actionText}d successfully`);
-                    fetchCategories();
-                  } else {
-                    toast.error(response.data.message || `Failed to ${actionText} category`);
-                  }
-                } catch (error) {
-                  if (error.response && error.response.data && error.response.data.message) {
-                    toast.error(error.response.data.message);
-                  } else {
-                    toast.error(`An error occurred while trying to ${actionText} the category.`);
-                  }
-                  console.error(error);
-                } finally {
-                  closeToast();
-                }
-              }}
-              className={`px-3 py-1 text-sm text-white rounded ${
-                newStatus ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
-              }`}
-            >
-              {newStatus ? 'Activate' : 'Deactivate'}
-            </button>
-            <button
-              onClick={closeToast}
-              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false,
+    const handleConfirm = async () => {
+      try {
+        const response = await toggleCategoryStatus(id, newStatus);
+        if (response.data.isSuccess) {
+          toast.success(`Category ${actionText}d successfully`);
+          fetchCategories();
+        } else {
+          toast.error(response.data.message || `Failed to ${actionText} category`);
+        }
+      } catch (error) {
+        if (error.response && error.response.data && error.response.data.message) {
+          toast.error(error.response.data.message);
+        } else {
+          toast.error(`An error occurred while trying to ${actionText} the category.`);
+        }
+        console.error(error);
       }
-    );
+    };
+
+    showCustomConfirmAlert({
+      title: `Confirm to ${actionText}`,
+      message: `Are you sure you want to ${actionText} this category?`,
+      onConfirm: handleConfirm,
+    });
   };
+
+
+
+// ... (rest of the component up to handleDelete)
+
+  const handleExport = async () => {
+    if (!canExport) {
+      toast.error('You do not have permission to export categories.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await exportCategories();
+      toast.success('Categories exported successfully!');
+    } catch (error) {
+      toast.error('Failed to export categories.');
+      console.error('Export error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileChange = (event) => {
+    setImportFile(event.target.files[0]);
+    setImportErrors([]); // Clear previous errors
+  };
+
+  const handleImport = async () => {
+    if (!canImport) {
+      toast.error('You do not have permission to import categories.');
+      return;
+    }
+    if (!importFile) {
+      toast.error('Please select a file to import.');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportErrors([]);
+
+    try {
+      const response = await importCategories(importFile);
+      if (response.data.isSuccess) {
+        toast.success(response.data.message || 'Categories imported successfully!');
+        setImportFile(null);
+        fetchCategories(); // Refresh the list
+      } else {
+        toast.error(response.data.message || 'Failed to import categories.');
+        if (response.data.validationErrors && response.data.validationErrors.length > 0) {
+          setImportErrors(response.data.validationErrors);
+        }
+      }
+    } catch (error) {
+      let errorMessage = 'An error occurred during import.';
+      if (error.response && error.response.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+        if (error.response.data.validationErrors) {
+          setImportErrors(error.response.data.validationErrors);
+        }
+      }
+      toast.error(errorMessage);
+      console.error('Import error:', error);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+// ... (rest of the component up to handleDelete)
+
 
   const handleDelete = (id) => {
     if (!canDelete) {
       toast.error('You do not have permission to delete categories.');
       return;
     }
-    toast(
-      ({ closeToast }) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-800 mb-2">Are you sure you want to delete this category?</span>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const response = await deleteCategory(id);
-                  if (response.data.isSuccess) {
-                    toast.success('Category deleted successfully');
-                  } else {
-                    toast.error(response.data.message || 'Failed to delete category');
-                  }
-                } catch (error) {
-                  if (error.response && error.response.data && error.response.data.message) {
-                    toast.error(error.response.data.message);
-                  } else {
-                    toast.error('An error occurred while deleting the category.');
-                  }
-                  console.error(error);
-                } finally {
-                  fetchCategories();
-                  closeToast();
-                }
-              }}
-              className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Delete
-            </button>
-            <button
-              onClick={closeToast}
-              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false
+
+    const handleConfirm = async () => {
+      try {
+        const response = await deleteCategory(id);
+        if (response.data.isSuccess) {
+          toast.success('Category deleted successfully');
+          fetchCategories(); // Refresh the list
+        } else {
+          toast.error(response.data.message || 'Failed to delete category');
+        }
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || 'An error occurred while deleting the category.';
+        toast.error(errorMessage);
+        console.error(error);
       }
-    );
+    };
+
+    showCustomConfirmAlert({
+      title: 'Confirm Deletion',
+      message: 'Are you sure you want to delete this category?',
+      onConfirm: handleConfirm,
+    });
   };
+
+// ... (rest of the component)
 
   return (
     <div className="p-6 bg-white rounded-lg shadow-md">
       <div className="mb-6 flex flex-col md:flex-row justify-between items-center">
         <h2 className="text-2xl font-semibold">Category List</h2>
-        {canCreate && (
-          <button
-            onClick={() => navigate('/categories/add')}
-            className="mt-4 md:mt-0 px-4 py-2 bg-[#E65100] text-white rounded-md hover:bg-[#D84315] transition"
-          >
-            Add Category
-          </button>
-        )}
+        <div className="flex flex-col md:flex-row gap-4 mt-4 md:mt-0">
+          {canExport && (
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center justify-center"
+              disabled={isLoading}
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h4a2 2 0 012 2v8a2 2 0 01-2 2z"></path>
+              </svg>
+              Export
+            </button>
+          )}
+          {canCreate && (
+            <button
+              onClick={() => navigate('/categories/add')}
+              className="px-4 py-2 bg-[#E65100] text-white rounded-md hover:bg-[#D84315] transition flex items-center justify-center"
+            >
+              <FaPlus className="mr-2" />
+              Add Category
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Import Section */}
+      {canImport && (
+        <div className="mb-6 p-4 border border-gray-300 rounded-md shadow-sm">
+          <h3 className="text-lg font-semibold mb-2">Import Categories (CSV)</h3>
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              className="block w-full text-sm text-gray-500
+              file:mr-4 file:py-2 file:px-4
+              file:rounded-md file:border-0
+              file:text-sm file:font-semibold
+              file:bg-orange-50 file:text-[#E65100]
+              hover:file:bg-orange-100"
+              disabled={isImporting}
+            />
+            <button
+              onClick={handleImport}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center justify-center w-full sm:w-auto"
+              disabled={isImporting || !importFile}
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+              </svg>
+              {isImporting ? 'Importing...' : 'Import'}
+            </button>
+          </div>
+          {importErrors.length > 0 && (
+            <div className="mt-4 text-red-600 text-sm">
+              <p className="font-semibold">Import Errors:</p>
+              <ul className="list-disc pl-5">
+                {importErrors.map((error, index) => (
+                  <li key={index}>
+                    Row {error.rowNumber || 'N/A'}: {error.propertyName} - {error.errorMessage}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-6 flex flex-col md:flex-row gap-4">
@@ -225,6 +322,7 @@ const CategoryList = () => {
             type="text"
             placeholder="Search categories..."
             className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E65100] focus:border-[#E65100]"
+            value={inputValue}
             onChange={handleSearchChange}
             disabled={isLoading}
           />
@@ -236,7 +334,10 @@ const CategoryList = () => {
           <select
             className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E65100] focus:border-[#E65100]"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
             disabled={isLoading}
           >
             <option value="">All Statuses</option>

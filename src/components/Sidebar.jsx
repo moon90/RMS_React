@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { FaBoxOpen, FaChevronDown, FaChevronRight,
+import {
+  FaBoxOpen, FaChevronDown, FaChevronRight,
   FaClipboardList, FaListUl, FaUtensils, FaHome, FaUsers, FaCog, FaPlus, FaEdit, FaTrash, FaFileAlt, FaUserShield,
   FaTruck, FaIndustry, FaUserFriends, FaUserTie, FaExchangeAlt, FaLeaf, FaBlender, FaCashRegister, FaTable, FaShoppingCart, FaTags // Add new icons
 } from 'react-icons/fa';
 import { NavLink } from 'react-router-dom';
 import { hasMenuPermission } from '../utils/permissionUtils';
+import logoNew from '../assets/images/logo_new.png';
 
 const menu = [ // Re-add the hardcoded menu array
   {
@@ -274,13 +276,14 @@ export default function Sidebar({ collapsed }) {
             key={subItem.label}
             to={subItem.to}
             className={({ isActive }) =>
-              `block px-2 py-1 rounded transition ${
-                isActive ? 'bg-[#E65100] font-semibold' : 'hover:bg-[#E65100]'
+              `block px-3 py-2 rounded-xl transition-all duration-200 ${isActive
+                ? 'bg-[#DA291C] text-white shadow-lg shadow-red-500/20 font-bold sidebar-active'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-[#DA291C]'
               }`
             }
           >
             <div className="flex items-center gap-3">
-              <SubIconComponent className="text-md text-white" />
+              <SubIconComponent className="text-md" />
               {!collapsed && <span>{subItem.label}</span>}
             </div>
           </NavLink>
@@ -294,21 +297,21 @@ export default function Sidebar({ collapsed }) {
         <div key={item.label}>
           <div
             onClick={() => toggleMenu(item.label)}
-            className="flex items-center justify-between px-3 py-2 rounded-md cursor-pointer hover:bg-white/10 transition"
+            className="flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-600 hover:text-[#DA291C] transition-all duration-200 group"
           >
             <div className="flex items-center gap-3">
-              <IconComponent className="text-lg text-white" />
-              {!collapsed && <span>{item.label}</span>}
+              <IconComponent className="text-xl text-gray-400 group-hover:text-red-500" />
+              {!collapsed && <span className="font-bold">{item.label}</span>}
             </div>
             {item.children && !collapsed && (
-              <span className="text-white">
-                {openMenus[item.label] ? <FaChevronDown /> : <FaChevronRight />}
+              <span className="opacity-40">
+                {openMenus[item.label] ? <FaChevronDown className="text-xs" /> : <FaChevronRight className="text-xs" />}
               </span>
             )}
           </div>
 
           {openMenus[item.label] && !collapsed && (
-            <div className="ml-6 mt-1 space-y-1 text-white">
+            <div className="ml-4 mt-1 border-l-2 border-[#FFC72C]/30 pl-2 space-y-1">
               {item.children.map(renderSubMenu)}
             </div>
           )}
@@ -320,14 +323,15 @@ export default function Sidebar({ collapsed }) {
           key={item.label}
           to={item.to}
           className={({ isActive }) =>
-            `block px-3 py-2 rounded transition ${
-              isActive ? 'bg-[#E65100] font-semibold' : 'hover:bg-[#E65100]'
+            `block px-3 py-3 rounded-xl transition-all duration-200 ${isActive
+              ? 'bg-[#DA291C] text-white shadow-lg shadow-red-500/20 font-bold sidebar-active'
+              : 'text-gray-600 hover:bg-gray-50 hover:text-[#DA291C]'
             }`
           }
         >
           <div className="flex items-center gap-3">
-            <IconComponent className="text-lg text-white" />
-            {!collapsed && <span>{item.label}</span>}
+            <IconComponent className="text-xl" />
+            {!collapsed && <span className="font-bold">{item.label}</span>}
           </div>
         </NavLink>
       );
@@ -337,13 +341,23 @@ export default function Sidebar({ collapsed }) {
 
   return (
     <aside
-      className={`h-full overflow-y-auto text-white transition-all duration-300 ${collapsed ? 'w-20' : 'w-64'} shadow-lg`}
+      className={`h-full overflow-y-auto bg-white text-gray-700 transition-all duration-300 ${collapsed ? 'w-20' : 'w-72'} border-r border-gray-100 shadow-xl`}
     >
-      <div className="p-4 font-bold text-xl text-center tracking-wide border-b border-white/20">
-        {collapsed ? '🍽️' : 'Restaurant'}
+      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md p-6 mb-4 border-b border-gray-50 flex justify-center">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-full p-1 bg-white shadow-md border-2 border-[#FFC72C] flex items-center justify-center overflow-hidden">
+            <img src={logoNew} alt="Logo" className="w-full h-full object-contain" />
+          </div>
+          {!collapsed && (
+            <div className="flex flex-col">
+              <span className="font-black text-[#DA291C] text-xl leading-none tracking-tighter">BRNO</span>
+              <span className="text-[10px] text-yellow-600 font-bold uppercase tracking-widest mt-1">Management</span>
+            </div>
+          )}
+        </div>
       </div>
 
-      <nav className="p-2 space-y-1 text-sm">
+      <nav className="px-4 pb-8 space-y-1">
         {filteredMenu.map(renderMenuItem)}
       </nav>
     </aside>

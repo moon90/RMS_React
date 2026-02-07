@@ -12,12 +12,12 @@ export const AuthProvider = ({ children }) => {
     const loadUser = async () => {
       try {
         const storedUser = localStorage.getItem('user');
-        const storedToken = localStorage.getItem('token');
+        const storedToken = localStorage.getItem('accessToken');
         const storedRolePermissions = localStorage.getItem('rolePermissions');
         const storedMenuPermissions = localStorage.getItem('menuPermissions');
 
-        if (storedUser && storedToken) {
-          const parsedUser = JSON.parse(storedUser);
+        if (storedToken) {
+          const parsedUser = storedUser ? JSON.parse(storedUser) : {};
           const rolePermissions = storedRolePermissions ? JSON.parse(storedRolePermissions) : [];
           const menuPermissions = storedMenuPermissions ? JSON.parse(storedMenuPermissions) : [];
           
@@ -40,20 +40,52 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       const response = await authServiceLogin(username, password);
-      if (response.data.isSuccess) {
-        const userData = response.data.data;
+      const userData = response.data?.data ?? response.data;
+      const hasToken =
+        Boolean(userData?.accessToken) ||
+        Boolean(userData?.access_token) ||
+        Boolean(userData?.token) ||
+        Boolean(response.data?.accessToken) ||
+        Boolean(response.data?.access_token) ||
+        Boolean(response.data?.token);
+
+      if (response.data?.isSuccess || hasToken) {
+        const userInfo = userData?.user ?? userData;
+        const accessToken =
+          userData?.accessToken ??
+          userData?.access_token ??
+          userData?.token ??
+          response.data.accessToken ??
+          response.data.access_token ??
+          response.data.token;
+        const refreshToken =
+          userData?.refreshToken ??
+          userData?.refresh_token ??
+          response.data.refreshToken ??
+          response.data.refresh_token;
         
         // Combine permissions before setting the user state
-        const combinedPermissions = [...(userData.rolePermissions || []), ...(userData.menuPermissions || [])];
-        const userWithPermissions = { ...userData.user, permissions: combinedPermissions };
+        const combinedPermissions = [...(userData?.rolePermissions || []), ...(userData?.menuPermissions || [])];
+        const userWithPermissions = { ...(userInfo || {}), permissions: combinedPermissions };
+
+        if (!accessToken) {
+          return { success: false, message: 'Login response missing access token.' };
+        }
 
         setUser(userWithPermissions);
         setIsAuthenticated(true);
-        localStorage.setItem('user', JSON.stringify(userData.user));
-        localStorage.setItem('token', userData.accessToken); 
-        localStorage.setItem('rolePermissions', JSON.stringify(userData.rolePermissions));
-        localStorage.setItem('menuPermissions', JSON.stringify(userData.menuPermissions));
-        return { success: true };
+        if (userInfo) {
+          localStorage.setItem('user', JSON.stringify(userInfo));
+        }
+        if (accessToken) {
+          localStorage.setItem('accessToken', accessToken);
+        }
+        if (refreshToken) {
+          localStorage.setItem('refreshToken', refreshToken);
+        }
+        localStorage.setItem('rolePermissions', JSON.stringify(userData?.rolePermissions || []));
+        localStorage.setItem('menuPermissions', JSON.stringify(userData?.menuPermissions || []));
+        return { success: true, data: userData };
       } else {
         return { success: false, message: response.data.message || 'Login failed' };
       }
@@ -67,7 +99,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem('user');
-    localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('rolePermissions');
     localStorage.removeItem('menuPermissions');
   };

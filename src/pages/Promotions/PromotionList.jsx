@@ -3,8 +3,7 @@ import { debounce } from 'lodash';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { FaEdit, FaTrashAlt, FaPlus } from 'react-icons/fa';
-import { confirmAlert } from 'react-confirm-alert';
-import 'react-confirm-alert/src/react-confirm-alert.css';
+import showCustomConfirmAlert from '../../components/CustomConfirmAlert';
 import promotionService from '../../services/promotionService';
 import { hasMenuPermission } from '../../utils/permissionUtils';
 import ProfessionalPagination from '../../components/ProfessionalPagination';
@@ -98,36 +97,30 @@ const PromotionList = () => {
             toast.error('You do not have permission to delete promotions.');
             return;
         }
-        confirmAlert({
+
+        const handleConfirm = async () => {
+            try {
+                const response = await promotionService.deletePromotion(id);
+                if (response.data.isSuccess) {
+                    toast.success('Promotion deleted successfully.');
+                    fetchPromotions();
+                } else {
+                    toast.error(response.data.message || 'Failed to delete promotion.');
+                }
+            } catch (err) {
+                if (err.response && err.response.data && err.response.data.message) {
+                    toast.error(err.response.data.message);
+                } else {
+                    toast.error('An error occurred while deleting the promotion.');
+                }
+                console.error(err);
+            }
+        };
+
+        showCustomConfirmAlert({
             title: 'Confirm to delete',
             message: 'Are you sure you want to delete this promotion?',
-            buttons: [
-                {
-                    label: 'Yes',
-                    onClick: async () => {
-                        try {
-                            const response = await promotionService.deletePromotion(id);
-                            if (response.data.isSuccess) {
-                                toast.success('Promotion deleted successfully.');
-                                fetchPromotions();
-                            } else {
-                                toast.error(response.data.message || 'Failed to delete promotion.');
-                            }
-                        } catch (err) {
-                            if (err.response && err.response.data && err.response.data.message) {
-                                toast.error(err.response.data.message);
-                            } else {
-                                toast.error('An error occurred while deleting the promotion.');
-                            }
-                            console.error(err);
-                        }
-                    }
-                },
-                {
-                    label: 'No',
-                    onClick: () => { }
-                }
-            ]
+            onConfirm: handleConfirm,
         });
     };
 
@@ -299,7 +292,7 @@ const PromotionList = () => {
                                                     className="p-1 border border-gray-300 rounded-md hover:bg-red-100 transition-colors"
                                                     aria-label="Delete promotion"
                                                 >
-                                                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0  24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                     </svg>
                                                 </button>
