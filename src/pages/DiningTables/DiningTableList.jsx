@@ -174,7 +174,7 @@ const DiningTableList = () => {
         {canCreate && (
           <button
             onClick={() => navigate('/dining-tables/add')}
-            className="mt-4 md:mt-0 px-4 py-2 bg-[#E65100] text-white rounded-md hover:bg-[#D84315] transition"
+            className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
           >
             Add New Dining Table
           </button>
@@ -187,7 +187,7 @@ const DiningTableList = () => {
           <input
             type="text"
             placeholder="Search dining tables..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E65100] focus:border-[#E65100]"
+            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             onChange={handleSearchChange}
             disabled={isLoading}
           />
@@ -197,7 +197,7 @@ const DiningTableList = () => {
         </div>
         <div className="relative">
           <select
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E65100] focus:border-[#E65100]"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             disabled={isLoading}
@@ -213,11 +213,11 @@ const DiningTableList = () => {
       {/* Responsive Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-[#F5F5F5]">
+          <thead className="bg-gray-100">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">#</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">#</th>
               <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!isLoading && 'cursor-pointer'}`}
+                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
                 onClick={() => handleSort('tableID')}
               >
                 <div className="flex items-center">
@@ -231,7 +231,7 @@ const DiningTableList = () => {
                 </div>
               </th>
               <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!isLoading && 'cursor-pointer'}`}
+                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
                 onClick={() => handleSort('tableName')}
               >
                 <div className="flex items-center">
@@ -244,9 +244,9 @@ const DiningTableList = () => {
                   )}
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">Table Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">Active Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">Actions</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Table Status</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Active Status</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -257,10 +257,10 @@ const DiningTableList = () => {
             ) : Array.isArray(diningTables) && diningTables.length > 0 ? (
               diningTables.map((table, idx) => (
                 <tr key={table.tableID} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 text-sm text-[#424242]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">{table.tableID}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">{table.tableName}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">
+                  <td className="px-4 py-4 text-sm text-gray-800">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">{table.tableID}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">{table.tableName}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         table.diningTableStatus === 'Available'
@@ -273,7 +273,7 @@ const DiningTableList = () => {
                       {table.diningTableStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">
+                  <td className="px-4 py-4 text-sm text-gray-800">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         table.status
@@ -284,7 +284,7 @@ const DiningTableList = () => {
                       {table.status ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">
+                  <td className="px-4 py-4 text-sm text-gray-800">
                     <div className="flex space-x-2">
                       {canEdit && (
                         <button 
@@ -292,7 +292,7 @@ const DiningTableList = () => {
                           className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
                           aria-label="Edit dining table"
                         >
-                          <FaEdit className="w-4 h-4 text-[#E65100]" />
+                          <FaEdit className="w-4 h-4 text-blue-600" />
                         </button>
                       )}
                       {canEdit && (

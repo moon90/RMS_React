@@ -533,7 +533,7 @@ const POSPage = () => {
 
   const handleProcessPayment = async (paymentData) => {
     const total = calculateTotal();
-    const finalAmount = total - paymentData.DiscountAmount;
+    const finalAmount = total - paymentData.DiscountAmount + (paymentData.TipAmount || 0);
 
     if (paymentData.AmountReceived < finalAmount && !paymentData.IsSplit) {
       toast.error("Amount received is less than the total amount.");
@@ -544,8 +544,9 @@ const POSPage = () => {
       ...orderFormData,
       total: total,
       discountAmount: paymentData.DiscountAmount,
+      tipAmount: paymentData.TipAmount || 0,
       received: paymentData.AmountReceived,
-      change: paymentData.ChangeAmount,
+      changeAmount: paymentData.ChangeAmount,
       orderStatus: 'Paid',
       orderDetails: cart.map(item => ({
         productID: item.productID,

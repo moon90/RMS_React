@@ -217,7 +217,7 @@ const OrderEdit = () => {
   return (
     <div className="p-3 max-w-4xl mx-auto">
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-[#424242]">Edit Order</h2>
+        <h2 className="text-2xl font-bold mb-6 text-gray-800">Edit Order</h2>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

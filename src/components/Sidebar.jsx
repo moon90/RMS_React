@@ -239,33 +239,37 @@ export default function Sidebar({ collapsed }) {
     }));
   };
 
-  const renderMenuItem = (item) => {
+  const renderMenuItem = (item, level = 0) => {
     const IconComponent = item.icon;
+    const isOpen = openMenus[item.label];
 
-    const renderSubMenu = (subItem) => {
+    const renderSubMenu = (subItem, subLevel) => {
       const SubIconComponent = subItem.icon || FaListUl;
+      const isSubOpen = openMenus[subItem.label];
 
       if (subItem.children && subItem.children.length > 0) {
         return (
-          <div key={subItem.label}>
+          <div key={subItem.label} className="mt-1">
             <div
               onClick={() => toggleMenu(subItem.label)}
-              className="flex items-center justify-between px-2 py-1 rounded-md cursor-pointer hover:bg-white/10 transition"
+              className={`flex items-center justify-between px-3 py-2.5 rounded-xl cursor-pointer transition-all duration-200 ${
+                isSubOpen ? 'bg-red-50 text-[#DA291C] font-bold' : 'text-gray-600 hover:bg-gray-50 hover:text-[#DA291C]'
+              }`}
             >
               <div className="flex items-center gap-3">
-                <SubIconComponent className="text-md text-white" />
+                <SubIconComponent className={`text-md ${isSubOpen ? 'text-[#DA291C]' : 'text-gray-400'}`} />
                 {!collapsed && <span>{subItem.label}</span>}
               </div>
               {subItem.children && !collapsed && (
-                <span className="text-white">
-                  {openMenus[subItem.label] ? <FaChevronDown /> : <FaChevronRight />}
+                <span className={isSubOpen ? 'text-[#DA291C]' : 'text-gray-400'}>
+                  {isSubOpen ? <FaChevronDown className="text-[10px]" /> : <FaChevronRight className="text-[10px]" />}
                 </span>
               )}
             </div>
 
-            {openMenus[subItem.label] && !collapsed && (
-              <div className="ml-4 mt-1 space-y-1 text-white">
-                {subItem.children.map(renderSubMenu)}
+            {isSubOpen && !collapsed && (
+              <div className="ml-5 mt-1 border-l-2 border-red-100 pl-3 space-y-1">
+                {subItem.children.map(child => renderSubMenu(child, subLevel + 1))}
               </div>
             )}
           </div>
@@ -276,14 +280,14 @@ export default function Sidebar({ collapsed }) {
             key={subItem.label}
             to={subItem.to}
             className={({ isActive }) =>
-              `block px-3 py-2 rounded-xl transition-all duration-200 ${isActive
-                ? 'bg-[#DA291C] text-white shadow-lg shadow-red-500/20 font-bold sidebar-active'
+              `block px-3 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                ? 'bg-gradient-to-r from-[#DA291C] to-red-500 text-white shadow-md shadow-red-500/20 font-bold sidebar-active'
                 : 'text-gray-500 hover:bg-gray-50 hover:text-[#DA291C]'
               }`
             }
           >
             <div className="flex items-center gap-3">
-              <SubIconComponent className="text-md" />
+              <SubIconComponent className="text-sm" />
               {!collapsed && <span>{subItem.label}</span>}
             </div>
           </NavLink>
@@ -294,25 +298,27 @@ export default function Sidebar({ collapsed }) {
 
     if (item.children && item.children.length > 0) {
       return (
-        <div key={item.label}>
+        <div key={item.label} className="mb-1">
           <div
             onClick={() => toggleMenu(item.label)}
-            className="flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer hover:bg-gray-50 text-gray-600 hover:text-[#DA291C] transition-all duration-200 group"
+            className={`flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer transition-all duration-200 group ${
+              isOpen ? 'bg-red-50/80 text-[#DA291C]' : 'text-gray-600 hover:bg-gray-50 hover:text-[#DA291C]'
+            }`}
           >
             <div className="flex items-center gap-3">
-              <IconComponent className="text-xl text-gray-400 group-hover:text-red-500" />
-              {!collapsed && <span className="font-bold">{item.label}</span>}
+              <IconComponent className={`text-xl transition-colors ${isOpen ? 'text-[#DA291C]' : 'text-gray-400 group-hover:text-red-500'}`} />
+              {!collapsed && <span className={`font-semibold ${isOpen ? 'text-[#DA291C]' : ''}`}>{item.label}</span>}
             </div>
             {item.children && !collapsed && (
-              <span className="opacity-40">
-                {openMenus[item.label] ? <FaChevronDown className="text-xs" /> : <FaChevronRight className="text-xs" />}
+              <span className={`transition-transform duration-200 ${isOpen ? 'text-[#DA291C]' : 'text-gray-400 opacity-50'}`}>
+                {isOpen ? <FaChevronDown className="text-[10px]" /> : <FaChevronRight className="text-[10px]" />}
               </span>
             )}
           </div>
 
-          {openMenus[item.label] && !collapsed && (
-            <div className="ml-4 mt-1 border-l-2 border-[#FFC72C]/30 pl-2 space-y-1">
-              {item.children.map(renderSubMenu)}
+          {isOpen && !collapsed && (
+            <div className="ml-5 mt-1 border-l-2 border-[#FFC72C]/40 pl-3 space-y-1 py-1">
+              {item.children.map(child => renderSubMenu(child, level + 1))}
             </div>
           )}
         </div>
@@ -323,15 +329,15 @@ export default function Sidebar({ collapsed }) {
           key={item.label}
           to={item.to}
           className={({ isActive }) =>
-            `block px-3 py-3 rounded-xl transition-all duration-200 ${isActive
-              ? 'bg-[#DA291C] text-white shadow-lg shadow-red-500/20 font-bold sidebar-active'
+            `block px-3 py-3 mb-1 rounded-xl transition-all duration-200 ${isActive
+              ? 'bg-gradient-to-r from-[#DA291C] to-red-500 text-white shadow-md shadow-red-500/20 font-bold sidebar-active'
               : 'text-gray-600 hover:bg-gray-50 hover:text-[#DA291C]'
             }`
           }
         >
           <div className="flex items-center gap-3">
             <IconComponent className="text-xl" />
-            {!collapsed && <span className="font-bold">{item.label}</span>}
+            {!collapsed && <span className="font-semibold">{item.label}</span>}
           </div>
         </NavLink>
       );

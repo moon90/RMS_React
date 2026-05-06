@@ -4,7 +4,7 @@ import useSignalR from '../useSignalR'; // Import the custom hook
 
 export default function Inventory() {
   const canViewInventory = hasPermission('INVENTORY_VIEW');
-  const { connection, isConnected, error } = useSignalR('https://localhost:7083/rmshub'); // Use your backend SignalR URL
+  const { connection, isConnected, error } = useSignalR('http://localhost:5074/rmshub'); // Use your backend SignalR URL
   const [inventoryUpdates, setInventoryUpdates] = useState([]);
 
   useEffect(() => {

@@ -108,11 +108,11 @@ const AuditLogsPage = () => {
       ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-[#F5F5F5]">
+            <thead className="bg-gray-100">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">ID</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">ID</th>
                 <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!loading && 'cursor-pointer'}`}
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!loading && 'cursor-pointer'}`}
                   onClick={() => handleSort('action')}
                 >
                   <div className="flex items-center">
@@ -125,7 +125,7 @@ const AuditLogsPage = () => {
                   </div>
                 </th>
                 <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!loading && 'cursor-pointer'}`}
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!loading && 'cursor-pointer'}`}
                   onClick={() => handleSort('entityType')}
                 >
                   <div className="flex items-center">
@@ -137,9 +137,9 @@ const AuditLogsPage = () => {
                     )}
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">Entity ID</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Entity ID</th>
                 <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!loading && 'cursor-pointer'}`}
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!loading && 'cursor-pointer'}`}
                   onClick={() => handleSort('performedBy')}
                 >
                   <div className="flex items-center">
@@ -152,7 +152,7 @@ const AuditLogsPage = () => {
                   </div>
                 </th>
                 <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!loading && 'cursor-pointer'}`}
+                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!loading && 'cursor-pointer'}`}
                   onClick={() => handleSort('performedAt')}
                 >
                   <div className="flex items-center">
@@ -164,19 +164,19 @@ const AuditLogsPage = () => {
                     )}
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">Details</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Details</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {auditLogs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-2 px-4 text-sm text-[#424242]">{log.id}</td>
-                  <td className="py-2 px-4 text-sm text-[#424242]">{log.action}</td>
-                  <td className="py-2 px-4 text-sm text-[#424242]">{log.entityType}</td>
-                  <td className="py-2 px-4 text-sm text-[#424242]">{log.entityId}</td>
-                  <td className="py-2 px-4 text-sm text-[#424242]">{log.performedBy}</td>
-                  <td className="py-2 px-4 text-sm text-[#424242]">{new Date(log.performedAt).toLocaleString()}</td>
-                  <td className="py-2 px-4 text-sm text-[#424242]">{log.details}</td>
+                  <td className="py-2 px-4 text-sm text-gray-800">{log.id}</td>
+                  <td className="py-2 px-4 text-sm text-gray-800">{log.action}</td>
+                  <td className="py-2 px-4 text-sm text-gray-800">{log.entityType}</td>
+                  <td className="py-2 px-4 text-sm text-gray-800">{log.entityId}</td>
+                  <td className="py-2 px-4 text-sm text-gray-800">{log.performedBy}</td>
+                  <td className="py-2 px-4 text-sm text-gray-800">{new Date(log.performedAt).toLocaleString()}</td>
+                  <td className="py-2 px-4 text-sm text-gray-800">{log.details}</td>
                 </tr>
               ))}
             </tbody>

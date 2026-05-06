@@ -217,7 +217,7 @@ const OrderList = () => {
         {canCreate && (
           <button
             onClick={() => navigate('/orders/add')}
-            className="mt-4 md:mt-0 px-4 py-2 bg-[#E65100] text-white rounded-md hover:bg-[#D84315] transition"
+            className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
           >
             Add New Order
           </button>
@@ -230,7 +230,7 @@ const OrderList = () => {
           <input
             type="text"
             placeholder="Search orders..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E65100] focus:border-[#E65100]"
+            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             onChange={handleSearchChange}
             disabled={isLoading}
           />
@@ -240,7 +240,7 @@ const OrderList = () => {
         </div>
         <div className="relative">
           <select
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#E65100] focus:border-[#E65100]"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             disabled={isLoading}
@@ -255,11 +255,11 @@ const OrderList = () => {
       {/* Responsive Table */}
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-[#F5F5F5]">
+          <thead className="bg-gray-100">
             <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">#</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">#</th>
               <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!isLoading && 'cursor-pointer'}`}
+                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
                 onClick={() => handleSort('OrderID')}
               >
                 <div className="flex items-center">
@@ -273,7 +273,7 @@ const OrderList = () => {
                 </div>
               </th>
               <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!isLoading && 'cursor-pointer'}`}
+                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
                 onClick={() => handleSort('orderDate')}
               >
                 <div className="flex items-center">
@@ -287,7 +287,7 @@ const OrderList = () => {
                 </div>
               </th>
               <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!isLoading && 'cursor-pointer'}`}
+                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
                 onClick={() => handleSort('orderTime')}
               >
                 <div className="flex items-center">
@@ -301,7 +301,7 @@ const OrderList = () => {
                 </div>
               </th>
               <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!isLoading && 'cursor-pointer'}`}
+                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
                 onClick={() => handleSort('orderStatus')}
               >
                 <div className="flex items-center">
@@ -315,7 +315,7 @@ const OrderList = () => {
                 </div>
               </th>
               <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-[#424242] ${!isLoading && 'cursor-pointer'}`}
+                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
                 onClick={() => handleSort('total')}
               >
                 <div className="flex items-center">
@@ -328,8 +328,8 @@ const OrderList = () => {
                   )}
                 </div>
               </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">Customer</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-[#424242]">Actions</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Customer</th>
+              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -340,11 +340,11 @@ const OrderList = () => {
             ) : orders.length > 0 ? (
               orders.map((order, idx) => (
                 <tr key={order.orderID} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 text-sm text-[#424242]">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">{order.orderID}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">{new Date(order.orderDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">{order.orderTime}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">
+                  <td className="px-4 py-4 text-sm text-gray-800">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">{order.orderID}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">{new Date(order.orderDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">{order.orderTime}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                         order.orderStatus === 'Completed' || order.orderStatus === 'Paid'
@@ -357,9 +357,9 @@ const OrderList = () => {
                       {order.orderStatus}
                     </span>
                   </td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">{order.total.toFixed(2)}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">{order.customer ? order.customer.customerName : 'N/A'}</td>
-                  <td className="px-4 py-4 text-sm text-[#424242]">
+                  <td className="px-4 py-4 text-sm text-gray-800">{order.total.toFixed(2)}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">{order.customer ? order.customer.customerName : 'N/A'}</td>
+                  <td className="px-4 py-4 text-sm text-gray-800">
                     <div className="flex space-x-2">
                       {canEdit && (
                         <button 
@@ -367,7 +367,7 @@ const OrderList = () => {
                           className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
                           aria-label="Edit order"
                         >
-                          <svg className="w-4 h-4 text-[#E65100]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5h-2m-2 0V7a2 2 0 00-2-2H11a2 2 0 00-2 2v5a2 2 0 002 2h5M9 12h1m-1 4h1" />
                           </svg>
                         </button>

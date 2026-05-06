@@ -76,6 +76,7 @@ const RoleMenus = lazy(() => import('./pages/Roles/RoleMenus'));
 const PermissionSetup = lazy(() => import('./pages/Roles/PermissionSetup'));
 const RolePermission = lazy(() => import('./pages/Roles/RolePermission'));
 const AccessDenied = lazy(() => import('./pages/AccessDenied'));
+const TokenDisplay = lazy(() => import('./pages/TokenDisplay'));
 
 import { AuthProvider } from './context/AuthContext';
 import { LayoutProvider } from './context/LayoutContext';
@@ -90,6 +91,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/login" />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/token-display" element={<TokenDisplay />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/users/add" element={<ProtectedRoute><UserAdd /></ProtectedRoute>} />
             <Route path="/users/list" element={<ProtectedRoute><UserList /></ProtectedRoute>} />

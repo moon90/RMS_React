@@ -46,7 +46,7 @@ const OrderDetail = () => {
   return (
     <div className="p-3 max-w-4xl mx-auto">
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-[#424242]">Order Details (ID: {order.orderID})</h2>
+        <h2 className="text-2xl font-bold mb-6 text-gray-800">Order Details (ID: {order.orderID})</h2>
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg shadow-md mb-6">
             <h3 className="text-xl font-semibold mb-3">Order Information</h3>
@@ -71,42 +71,42 @@ const OrderDetail = () => {
           {order.orderDetails && order.orderDetails.length > 0 ? (
             <div className="overflow-x-auto rounded-lg border border-gray-200 mb-6">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-[#F5F5F5]">
+                <thead className="bg-gray-100">
                   <tr>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-[#424242]">Product</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-[#424242]">Quantity</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-[#424242]">Price</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-[#424242]">Discount</th>
-                    <th className="py-2 px-4 text-left text-sm font-semibold text-[#424242]">Amount</th>
+                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-800">Product</th>
+                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-800">Quantity</th>
+                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-800">Price</th>
+                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-800">Discount</th>
+                    <th className="py-2 px-4 text-left text-sm font-semibold text-gray-800">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {order.orderDetails.map((detail, index) => (
                     <tr key={index} className="hover:bg-gray-50 transition-colors">
-                      <td className="py-2 px-4 text-sm text-[#424242]">{detail.product.productName || 'N/A'}</td>
-                      <td className="py-2 px-4 text-sm text-[#424242]">{detail.quantity}</td>
-                      <td className="py-2 px-4 text-sm text-[#424242]">{detail.price.toFixed(2)}</td>
-                      <td className="py-2 px-4 text-sm text-[#424242]">{detail.discountPrice.toFixed(2)}</td>
-                      <td className="py-2 px-4 text-sm text-[#424242]">{detail.amount.toFixed(2)}</td>
+                      <td className="py-2 px-4 text-sm text-gray-800">{detail.product.productName || 'N/A'}</td>
+                      <td className="py-2 px-4 text-sm text-gray-800">{detail.quantity}</td>
+                      <td className="py-2 px-4 text-sm text-gray-800">{detail.price.toFixed(2)}</td>
+                      <td className="py-2 px-4 text-sm text-gray-800">{detail.discountPrice.toFixed(2)}</td>
+                      <td className="py-2 px-4 text-sm text-gray-800">{detail.amount.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           ) : (
-            <p className="text-[#424242]">No items in this order.</p>
+            <p className="text-gray-800">No items in this order.</p>
           )}
 
           <div className="flex justify-end gap-3 pt-4">
             {canEdit && (
-              <Link to={`/orders/edit/${order.orderID}`} className="px-6 py-2 rounded-md bg-[#E65100] text-white hover:bg-[#D84315] transition font-medium shadow">
+              <Link to={`/orders/edit/${order.orderID}`} className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow">
                 Edit Order
               </Link>
             )}
             <button
               type="button"
               onClick={() => navigate('/orders/list')}
-              className="px-5 py-2 rounded-md bg-[#F5F5F5] text-[#424242] hover:bg-[#E0E0E0] border border-gray-300 transition"
+              className="px-5 py-2 rounded-md bg-gray-100 text-gray-800 hover:bg-[#E0E0E0] border border-gray-300 transition"
             >
               Back to Order List
             </button>

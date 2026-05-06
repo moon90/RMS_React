@@ -57,12 +57,12 @@ const DiningTableAdd = () => {
   return (
     <div className="p-3 max-w-4xl mx-auto">
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-[#424242]">Add New Dining Table</h2>
+        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New Dining Table</h2>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 gap-6">
             <div>
-              <label htmlFor="tableName" className="block text-sm font-medium text-[#424242] mb-1">Table Name</label>
+              <label htmlFor="tableName" className="block text-sm font-medium text-gray-800 mb-1">Table Name</label>
               <input
                 type="text"
                 id="tableName"
@@ -71,31 +71,31 @@ const DiningTableAdd = () => {
                 placeholder="Enter table name"
                 onChange={handleChange}
                 required
-                className={`w-full px-4 py-2 border ${errors.tableName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none`}
+                className={`w-full px-4 py-2 border ${errors.tableName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
               />
               {errors.tableName && <p className="text-red-500 text-xs mt-1">{errors.tableName}</p>}
             </div>
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-[#424242] mb-1">Active Status</label>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-800 mb-1">Active Status</label>
               <select
                 id="status"
                 name="status"
                 value={formData.status}
                 onChange={(e) => setFormData({ ...formData, status: e.target.value === 'true' })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
             </div>
             <div>
-              <label htmlFor="diningTableStatus" className="block text-sm font-medium text-[#424242] mb-1">Dining Table Status</label>
+              <label htmlFor="diningTableStatus" className="block text-sm font-medium text-gray-800 mb-1">Dining Table Status</label>
               <select
                 id="diningTableStatus"
                 name="diningTableStatus"
                 value={formData.diningTableStatus}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
               >
                 <option value="Available">Available</option>
                 <option value="Occupied">Occupied</option>
@@ -109,13 +109,13 @@ const DiningTableAdd = () => {
             <button
               type="button"
               onClick={() => navigate('/dining-tables/list')}
-              className="px-5 py-2 rounded-md bg-[#F5F5F5] text-[#424242] hover:bg-[#E0E0E0] border border-gray-300 transition"
+              className="px-5 py-2 rounded-md bg-gray-100 text-gray-800 hover:bg-[#E0E0E0] border border-gray-300 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-md bg-[#E65100] text-white hover:bg-[#D84315] transition font-medium shadow"
+              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
             >
               Add Table
             </button>

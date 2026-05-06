@@ -16,16 +16,18 @@ const CheckoutModal = ({
   const [coupon, setCoupon] = useState('');
   const [appliedPromotionId, setAppliedPromotionId] = useState(null);
   const [change, setChange] = useState(0);
+  const [tipAmount, setTipAmount] = useState(0);
   const [showSplitBillModal, setShowSplitBillModal] = useState(false);
   const amountInputRef = useRef(null);
 
-  // Calculate final amount after discount
-  const finalAmount = totalAmount - discount;
+  // Calculate final amount after discount and tip
+  const finalAmount = totalAmount - discount + tipAmount;
 
   useEffect(() => {
     if (isOpen) {
         setDiscount(0); // Reset discount when modal opens
         setDiscountPercent(0); // Reset discount percent
+        setTipAmount(0); // Reset tip
         setCoupon(''); // Reset coupon
         setAppliedPromotionId(null); // Reset applied promotion ID
         setAmountReceived(finalAmount); // Initialize amount received to final amount
@@ -101,7 +103,7 @@ const CheckoutModal = ({
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
-        onProcessPayment({ amountReceived, discount });
+        onProcessPayment({ amountReceived, discount, tipAmount });
     }
   }
 
@@ -109,6 +111,7 @@ const CheckoutModal = ({
     onProcessPayment({ 
         AmountReceived: amountReceived, 
         DiscountAmount: discount, 
+        TipAmount: tipAmount,
         AmountPaid: finalAmount, 
         ChangeAmount: change, 
         PromotionID: appliedPromotionId, 
@@ -171,6 +174,19 @@ const CheckoutModal = ({
               </div>
             </div>
 
+            <div className="flex items-center space-x-4">
+              <div className="flex-1">
+                  <label htmlFor="tipAmount" className="block text-sm font-medium">Tip Amount ($)</label>
+                  <input
+                  type="number"
+                  id="tipAmount"
+                  value={tipAmount.toFixed(2)}
+                  onChange={(e) => setTipAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full px-4 py-2 mt-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                  />
+              </div>
+            </div>
+
             <div className="text-xl font-semibold flex justify-between">
               <span>Amount to Pay:</span>
               <span>${finalAmount.toFixed(2)}</span>
@@ -209,7 +225,7 @@ const CheckoutModal = ({
               Split Bill
             </button>
             <button
-              onClick={() => onProcessPayment({ AmountReceived: amountReceived, DiscountAmount: discount, AmountPaid: finalAmount, ChangeAmount: change, PromotionID: appliedPromotionId, IsSplit: false })}
+              onClick={() => onProcessPayment({ AmountReceived: amountReceived, DiscountAmount: discount, TipAmount: tipAmount, AmountPaid: finalAmount, ChangeAmount: change, PromotionID: appliedPromotionId, IsSplit: false })}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-200"
             >
               Process Payment

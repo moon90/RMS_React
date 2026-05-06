@@ -117,12 +117,12 @@ const PromotionForm = ({ isEdit }) => {
     return (
         <div className="p-3 max-w-4xl mx-auto">
             <FormCard>
-                <h2 className="text-2xl font-bold mb-6 text-[#424242]">{isEdit ? 'Edit Promotion' : 'Add New Promotion'}</h2>
+                <h2 className="text-2xl font-bold mb-6 text-gray-800">{isEdit ? 'Edit Promotion' : 'Add New Promotion'}</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
                     <div className="grid grid-cols-1 gap-6">
                         <div>
-                            <label htmlFor="couponCode" className="block text-sm font-medium text-[#424242] mb-1">
+                            <label htmlFor="couponCode" className="block text-sm font-medium text-gray-800 mb-1">
                                 Coupon Code
                             </label>
                             <input
@@ -131,13 +131,13 @@ const PromotionForm = ({ isEdit }) => {
                                 id="couponCode"
                                 value={promotion.couponCode}
                                 onChange={handleChange}
-                                className={`w-full px-4 py-2 border ${errors.couponCode ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none`}
+                                className={`w-full px-4 py-2 border ${errors.couponCode ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                                 required
                             />
                             {errors.couponCode && <p className="text-red-500 text-xs mt-1">{errors.couponCode}</p>}
                         </div>
                         <div>
-                            <label htmlFor="discountAmount" className="block text-sm font-medium text-[#424242] mb-1">
+                            <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-800 mb-1">
                                 Discount Amount
                             </label>
                             <input
@@ -146,13 +146,13 @@ const PromotionForm = ({ isEdit }) => {
                                 id="discountAmount"
                                 value={promotion.discountAmount}
                                 onChange={handleChange}
-                                className={`w-full px-4 py-2 border ${errors.discountAmount ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none`}
+                                className={`w-full px-4 py-2 border ${errors.discountAmount ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                                 step="0.01"
                             />
                             {errors.discountAmount && <p className="text-red-500 text-xs mt-1">{errors.discountAmount}</p>}
                         </div>
                         <div>
-                            <label htmlFor="discountPercentage" className="block text-sm font-medium text-[#424242] mb-1">
+                            <label htmlFor="discountPercentage" className="block text-sm font-medium text-gray-800 mb-1">
                                 Discount Percentage
                             </label>
                             <input
@@ -161,13 +161,13 @@ const PromotionForm = ({ isEdit }) => {
                                 id="discountPercentage"
                                 value={promotion.discountPercentage}
                                 onChange={handleChange}
-                                className={`w-full px-4 py-2 border ${errors.discountPercentage ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none`}
+                                className={`w-full px-4 py-2 border ${errors.discountPercentage ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                                 step="0.01"
                             />
                             {errors.discountPercentage && <p className="text-red-500 text-xs mt-1">{errors.discountPercentage}</p>}
                         </div>
                         <div>
-                            <label htmlFor="description" className="block text-sm font-medium text-[#424242] mb-1">
+                            <label htmlFor="description" className="block text-sm font-medium text-gray-800 mb-1">
                                 Description
                             </label>
                             <textarea
@@ -175,12 +175,12 @@ const PromotionForm = ({ isEdit }) => {
                                 id="description"
                                 value={promotion.description}
                                 onChange={handleChange}
-                                className={`w-full px-4 py-2 border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none`}
+                                className={`w-full px-4 py-2 border ${errors.description ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                             ></textarea>
                             {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
                         </div>
                         <div>
-                            <label htmlFor="validFrom" className="block text-sm font-medium text-[#424242] mb-1">
+                            <label htmlFor="validFrom" className="block text-sm font-medium text-gray-800 mb-1">
                                 Valid From
                             </label>
                             <input
@@ -189,13 +189,13 @@ const PromotionForm = ({ isEdit }) => {
                                 id="validFrom"
                                 value={promotion.validFrom}
                                 onChange={handleChange}
-                                className={`w-full px-4 py-2 border ${errors.validFrom ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none`}
+                                className={`w-full px-4 py-2 border ${errors.validFrom ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                                 required
                             />
                             {errors.validFrom && <p className="text-red-500 text-xs mt-1">{errors.validFrom}</p>}
                         </div>
                         <div>
-                            <label htmlFor="validTo" className="block text-sm font-medium text-[#424242] mb-1">
+                            <label htmlFor="validTo" className="block text-sm font-medium text-gray-800 mb-1">
                                 Valid To
                             </label>
                             <input
@@ -204,7 +204,7 @@ const PromotionForm = ({ isEdit }) => {
                                 id="validTo"
                                 value={promotion.validTo}
                                 onChange={handleChange}
-                                className={`w-full px-4 py-2 border ${errors.validTo ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-[#E65100] focus:outline-none`}
+                                className={`w-full px-4 py-2 border ${errors.validTo ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
                                 required
                             />
                             {errors.validTo && <p className="text-red-500 text-xs mt-1">{errors.validTo}</p>}
@@ -216,9 +216,9 @@ const PromotionForm = ({ isEdit }) => {
                                 id="isActive"
                                 checked={promotion.isActive}
                                 onChange={handleChange}
-                                className="mr-2 h-4 w-4 text-[#E65100] focus:ring-[#E65100] border-gray-300 rounded"
+                                className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                             />
-                            <label htmlFor="isActive" className="text-sm font-medium text-[#424242]">
+                            <label htmlFor="isActive" className="text-sm font-medium text-gray-800">
                                 Is Active
                             </label>
                         </div>
@@ -229,14 +229,14 @@ const PromotionForm = ({ isEdit }) => {
                         <button
                             type="button"
                             onClick={() => navigate('/promotions/list')}
-                            className="px-5 py-2 rounded-md bg-[#F5F5F5] text-[#424242] hover:bg-[#E0E0E0] border border-gray-300 transition"
+                            className="px-5 py-2 rounded-md bg-gray-100 text-gray-800 hover:bg-[#E0E0E0] border border-gray-300 transition"
                             disabled={loading}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            className="px-6 py-2 rounded-md bg-[#E65100] text-white hover:bg-[#D84315] transition font-medium shadow"
+                            className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
                             disabled={loading}
                         >
                             {loading ? 'Saving...' : (isEdit ? 'Update Promotion' : 'Add Promotion')}
