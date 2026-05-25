@@ -1,72 +1,35 @@
-import { Card, CardContent, Typography, Box, List, ListItem, ListItemText, ListItemAvatar, Avatar, Divider } from '@mui/material';
+import React from 'react';
 
-export default function MenuTrends() {
+const MenuTrends = ({ items, currencySymbol = '$' }) => {
   return (
-    <Card sx={{ mt: 3 }}>
-      <CardContent>
-        <Typography variant="h6" component="div" sx={{ mb: 1 }}>
-          Daily Trending Menus
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Lorem ipsum dolor sit amet, consectetur
-        </Typography>
-        
-        <List>
-          <ListItem disablePadding>
-            <ListItemText 
-              primary={
-                <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                  #1 <Box component="span" sx={{ ml: 1, fontWeight: 'bold' }}>Medium Spicy Spaghetti Italiano</Box>
-                </Typography>
-              }
-              secondary={
-                <Typography variant="body2" color="text.secondary">
-                  $5.60 · Order 89x
-                </Typography>
-              }
-            />
-            <ListItemAvatar>
-              <Avatar src="https://source.unsplash.com/40x40/?spaghetti" alt="Spaghetti" variant="rounded" />
-            </ListItemAvatar>
-          </ListItem>
-          <Divider variant="inset" component="li" sx={{ my: 1 }} />
-          <ListItem disablePadding>
-            <ListItemText 
-              primary={
-                <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                  #2 <Box component="span" sx={{ ml: 1, fontWeight: 'bold' }}>Classic Beef Burger</Box>
-                </Typography>
-              }
-              secondary={
-                <Typography variant="body2" color="text.secondary">
-                  $7.50 · Order 75x
-                </Typography>
-              }
-            />
-            <ListItemAvatar>
-              <Avatar src="https://source.unsplash.com/40x40/?burger" alt="Burger" variant="rounded" />
-            </ListItemAvatar>
-          </ListItem>
-          <Divider variant="inset" component="li" sx={{ my: 1 }} />
-          <ListItem disablePadding>
-            <ListItemText 
-              primary={
-                <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                  #3 <Box component="span" sx={{ ml: 1, fontWeight: 'bold' }}>Caesar Salad</Box>
-                </Typography>
-              }
-              secondary={
-                <Typography variant="body2" color="text.secondary">
-                  $6.00 · Order 60x
-                </Typography>
-              }
-            />
-            <ListItemAvatar>
-              <Avatar src="https://source.unsplash.com/40x40/?salad" alt="Salad" variant="rounded" />
-            </ListItemAvatar>
-          </ListItem>
-        </List>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {items?.map((item, index) => (
+        <div key={index} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border-2 border-transparent hover:border-blue-100 transition-all group">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-white rounded-xl shadow-sm border overflow-hidden flex items-center justify-center font-black text-slate-400 group-hover:text-blue-500 transition-colors">
+              {item.thumbnailImage ? (
+                <img src={`data:image/png;base64,${item.thumbnailImage}`} alt={item.productName} className="w-full h-full object-cover" />
+              ) : (
+                index + 1
+              )}
+            </div>
+            <div>
+              <h4 className="font-bold text-slate-800 text-sm">{item.productName}</h4>
+              <p className="text-xs font-semibold text-slate-400 mt-0.5">{currencySymbol}{(item.price ?? 0).toLocaleString()} · {item.orderCount ?? 0} orders</p>
+            </div>
+          </div>
+          <div className="text-right">
+             <span className="text-xs font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Top {index + 1}</span>
+          </div>
+        </div>
+      ))}
+      {(!items || items.length === 0) && (
+        <div className="text-center py-8">
+           <p className="text-slate-400 font-bold text-sm italic">No data available for this period.</p>
+        </div>
+      )}
+    </div>
   );
-}
+};
+
+export default MenuTrends;

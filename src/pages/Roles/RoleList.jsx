@@ -5,6 +5,18 @@ import { toast } from 'react-toastify';
 import { getAllRoles, deleteRole, toggleRoleStatus } from '../../services/userRoleManagementService.js';
 import { hasPermission } from '../../utils/permissionUtils';
 import ProfessionalPagination from '../../components/ProfessionalPagination';
+import { 
+  FaSearch, 
+  FaPlus, 
+  FaEdit, 
+  FaTrashAlt, 
+  FaCheckCircle, 
+  FaTimesCircle, 
+  FaShieldAlt,
+  FaFilter,
+  FaFingerprint,
+  FaFileAlt
+} from 'react-icons/fa';
 
 export default function RoleList() {
   const [roles, setRoles] = useState([]);
@@ -12,22 +24,21 @@ export default function RoleList() {
   const [selectedRole, setSelectedRole] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(50); // Showing "all" rows by default
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('RoleName');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filters, setFilters] = useState({
-    status: '',
-    permission: ''
+    status: ''
   });
-  const [isLoading, setIsLoading] = useState(false); // Added loading state
+  const [isLoading, setIsLoading] = useState(false);
 
   const canCreateRole = hasPermission('ROLE_CREATE');
   const canUpdateRole = hasPermission('ROLE_UPDATE');
   const canDeleteRole = hasPermission('ROLE_DELETE');
 
   const fetchRoles = useCallback(async () => {
-    setIsLoading(true); // Set loading to true
+    setIsLoading(true);
     try {
       const params = {
         pageNumber: currentPage,
@@ -37,22 +48,22 @@ export default function RoleList() {
         sortDirection: sortDirection,
       };
       const response = await getAllRoles(params);
-      if (response.data) {
-        let fetchedRoles = response.data.data.items;
-        setRoles(fetchedRoles);
-        setTotalRoles(response.data.data.totalRecords || 0);
+      if (response.data && response.data.isSuccess) {
+        const rawData = response.data.data || {};
+        setRoles(rawData.items || []);
+        const total = rawData.totalRecords || rawData.TotalRecords || rawData.totalCount || rawData.TotalCount || (rawData.items?.length || 0);
+        setTotalRoles(total);
       } else {
-        toast.error('Failed to fetch roles');
-        setRoles([]); // Clear roles on error
+        toast.error('Failed to synchronize security registry.');
+        setRoles([]);
         setTotalRoles(0);
       }
     } catch (error) {
-      toast.error('An error occurred while fetching roles.');
-      console.error(error);
-      setRoles([]); // Clear roles on error
+      toast.error('Critical failure: Security registry unreachable.');
+      setRoles([]);
       setTotalRoles(0);
     } finally {
-      setIsLoading(false); // Set loading to false
+      setIsLoading(false);
     }
   }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection]);
 
@@ -69,8 +80,14 @@ export default function RoleList() {
     debouncedSearch(event.target.value);
   };
 
+  const handleFilter = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
+  };
+
   const handleSort = (field) => {
-    if (isLoading) return; // Prevent sorting while loading
+    if (isLoading) return;
     if (field === sortField) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -79,380 +96,223 @@ export default function RoleList() {
     }
   };
 
-  const handleFilter = (e) => {
-    if (isLoading) return; // Prevent filtering while loading
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
-    setCurrentPage(1);
-  };
-
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleRowsPerPageChange = (newRowsPerPage) => {
-    setItemsPerPage(newRowsPerPage);
-    setCurrentPage(1);
-  };
-  
-  const handleEdit = (roleId) => {
-    if (!canUpdateRole) {
-      toast.error('You do not have permission to edit roles.');
-      return;
-    }
-    const roleToEdit = roles.find(role => role.roleID === roleId);
-    if (roleToEdit) {
-      setSelectedRole(roleToEdit);
-      setIsEditModalOpen(true);
+  const handleToggleStatus = async (role) => {
+    if (!canUpdateRole) return;
+    try {
+      const response = await toggleRoleStatus(role.roleID);
+      if (response.data.isSuccess) {
+        toast.success(`Role '${role.roleName}' status updated.`);
+        fetchRoles();
+      }
+    } catch (error) {
+      toast.error('Authority status update failed.');
     }
   };
-  
+
   const handleDelete = (id) => {
-    if (!canDeleteRole) {
-      toast.error('You do not have permission to delete roles.');
-      return;
-    }
-    toast(
-      ({ closeToast }) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-800 mb-2">Are you sure you want to delete this role?</span>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const response = await deleteRole(id);
-                  if (response.data.isSuccess) {
-                    toast.success('Role deleted successfully');
-                  } else {
-                    // Display specific error message from backend
-                    toast.error(response.data.message || 'Failed to delete role');
-                  }
-                } catch (error) {
-                  // Handle network errors or unexpected exceptions
-                  if (error.response && error.response.data && error.response.data.message) {
-                    toast.error(error.response.data.message);
-                  } else {
-                    toast.error('An error occurred while deleting the role.');
-                  }
-                  console.error(error);
-                } finally {
-                  fetchRoles(); // Always refresh the list after a delete attempt
-                  closeToast();
+    if (!canDeleteRole) return;
+    
+    toast(({ closeToast }) => (
+      <div className="p-1">
+        <p className="text-sm font-bold text-gray-800 mb-3">Purge this security role permanently?</p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const response = await deleteRole(id);
+                if (response.data.isSuccess) {
+                  toast.success('Security node purged successfully');
+                  fetchRoles();
+                } else {
+                  toast.error(response.data.message || 'Purge rejected by system');
                 }
-              }}
-              className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Delete
-            </button>
-            <button
-              onClick={closeToast}
-              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </div>
+              } catch (err) {
+                toast.error('Cannot purge role: Active dependencies found');
+              }
+              closeToast();
+            }}
+            className="bg-red-500 text-white px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-red-600 transition-colors"
+          >
+            Confirm
+          </button>
+          <button
+            onClick={closeToast}
+            className="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false
-      }
-    );
-  };
-
-  const handleToggleStatus = async (id, currentStatus) => {
-    if (!canUpdateRole) {
-      toast.error('You do not have permission to change role status.');
-      return;
-    }
-
-    const newStatus = !currentStatus;
-    const actionText = newStatus ? 'activate' : 'deactivate';
-
-    toast(
-      ({ closeToast }) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-800 mb-2">
-            Are you sure you want to {actionText} this role?
-          </span>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const response = await toggleRoleStatus(id, newStatus);
-                  if (response.data.isSuccess) {
-                    toast.success(`Role ${actionText}d successfully`);
-                    fetchRoles();
-                  } else {
-                    toast.error(response.data.message || `Failed to ${actionText} role`);
-                  }
-                } catch (error) {
-                  if (error.response && error.response.data && error.response.data.message) {
-                    toast.error(error.response.data.message);
-                  } else {
-                    toast.error(`An error occurred while trying to ${actionText} the role.`);
-                  }
-                  console.error(error);
-                } finally {
-                  closeToast();
-                }
-              }}
-              className={`px-3 py-1 text-sm text-white rounded ${
-                newStatus ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
-              }`}
-            >
-              {newStatus ? 'Activate' : 'Deactivate'}
-            </button>
-            <button
-              onClick={closeToast}
-              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false,
-      }
-    );
-  };
-
-  const handleSave = () => {
-    setIsEditModalOpen(false);
-    fetchRoles();
+      </div>
+    ), { autoClose: false, closeOnClick: false });
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-center">
-            <h2 className="text-2xl font-semibold">Role List</h2>
-            {canCreateRole && (
-              <button
-                  onClick={() => {
-                  setSelectedRole(null);
-                  setIsEditModalOpen(true);
-                  }}
-                  className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-              >
-                  Add Role
-              </button>
-            )}
-      </div>
+    <div className="container mx-auto p-6 animate-fade-in max-w-7xl">
       
-      {/* Search and Filters */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <FaShieldAlt className="text-blue-600" />
+            Role List
+          </h1>
+          <p className="text-gray-500 mt-1 font-medium italic">Manage system roles and permissions</p>
+        </div>
+        
+        {canCreateRole && (
+          <button
+            onClick={() => { setSelectedRole(null); setIsEditModalOpen(true); }}
+            className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 transition-all active:scale-95"
+          >
+            <FaPlus /> Add Role
+          </button>
+        )}
+      </div>
+
+      {/* FILTER & SEARCH BAR */}
+      <div className="mb-8 flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative group flex-1">
           <input
             type="text"
             placeholder="Search roles..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-12 pr-4 py-4 bg-white border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all shadow-sm group-hover:shadow-md font-bold text-gray-700"
             onChange={handleSearchChange}
-            disabled={isLoading}
           />
-          <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
+          <FaSearch className="absolute top-5 left-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
         </div>
         
-        <select 
-          name="status" 
-          className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          onChange={handleFilter}
-          value={filters.status}
-          disabled={isLoading}
-        >
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        
-        {/* Permissions filter (if applicable) */}
-        {/* <select 
-          name="permission" 
-          className="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          onChange={handleFilter}
-          value={filters.permission}
-          disabled={isLoading}
-        >
-          <option value="">All Permissions</option>
-          <option value="All">All</option>
-          <option value="Edit">Edit</option>
-          <option value="View">View</option>
-        </select> */}
+        <div className="flex gap-4">
+          <div className="relative">
+            <FaFilter className="absolute left-4 top-5 text-gray-400 pointer-events-none" />
+            <select 
+              name="status" 
+              className="pl-10 pr-10 py-4 bg-white border-2 border-gray-100 rounded-2xl focus:border-blue-500 outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 cursor-pointer shadow-sm hover:shadow-md transition-all appearance-none"
+              onChange={handleFilter}
+              value={filters.status}
+            >
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
       </div>
-      
-      {/* Responsive Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-              <th 
-                className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('RoleName')}
-              >
-                <div className="flex items-center">
-                  Role Name
-                  {sortField === 'RoleName' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th 
-                className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('Description')}
-              >
-                <div className="flex items-center">
-                  Description
-                  {sortField === 'Description' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th 
-                className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('CreatedDate')}
-              >
-                <div className="flex items-center">
-                  Created Date
-                  {sortField === 'CreatedDate' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {isLoading ? (
-              <tr>
-                <td colSpan="6" className="text-center py-4">Loading...</td>
+
+      {/* TABLE SECTION */}
+      <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-gray-200/50 border border-gray-50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer" onClick={() => handleSort('RoleName')}>Role Details</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Description</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Status</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
-            ) : roles.length > 0 ? (
-              roles.map((role, idx) => (
-                <tr key={role.roleID} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 text-sm text-gray-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{role.roleName}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{role.description}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{new Date(role.createdDate).toLocaleDateString()}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      role.status ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {role.status ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-700">
-                    <div className="flex space-x-2">
-                      {canUpdateRole && (
-                        <button 
-                          onClick={() => handleEdit(role.roleID)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Edit role"
-                        >
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5h-2m-2 0V7a2 2 0 00-2-2H11a2 2 0 00-2 2v5a2 2 0 002 2h5M9 12h1m-1 4h1" />
-                          </svg>
-                        </button>
-                      )}
-                      {canUpdateRole && (
-                        <button
-                          onClick={() => handleToggleStatus(role.roleID, role.status)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Toggle active status"
-                        >
-                          {role.status ? (
-                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                      {canDeleteRole && (
-                        <button 
-                          onClick={() => handleDelete(role.roleID)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-red-100 transition-colors"
-                          aria-label="Delete role"
-                        >
-                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {isLoading ? (
+                <tr><td colSpan="4" className="py-20 text-center"><div className="w-12 h-12 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div><p className="mt-4 text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">Syncing Registry...</p></td></tr>
+              ) : roles.length > 0 ? (
+                roles.map((role) => (
+                  <tr key={role.roleID} className="hover:bg-gray-50/50 transition-all group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-inner border-2 border-white ring-4 ring-gray-50 group-hover:ring-blue-50 transition-all ${role.status ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                            <FaFingerprint />
+                          </div>
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ${role.status ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-black text-gray-800 text-sm tracking-tight uppercase">{role.roleName}</span>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">ID: {role.roleID}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex flex-col max-w-[300px]">
+                        <span className="text-xs font-bold text-gray-500 italic flex items-center gap-2">
+                          <FaFileAlt className="text-gray-200" /> {role.description || 'No system definition provided.'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <button 
+                        onClick={() => handleToggleStatus(role)}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm ${
+                          role.status ? 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100' : 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100'
+                        }`}
+                      >
+                        {role.status ? <><FaCheckCircle /> Active</> : <><FaTimesCircle /> Inactive</>}
+                      </button>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                        {canUpdateRole && (
+                          <button onClick={() => { setSelectedRole(role); setIsEditModalOpen(true); }} className="p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm"><FaEdit /></button>
+                        )}
+                        {canDeleteRole && (
+                          <button onClick={() => handleDelete(role.roleID)} className="p-3 bg-white border border-gray-100 rounded-xl text-red-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm"><FaTrashAlt /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="px-8 py-20 text-center">
+                    <div className="flex flex-col items-center gap-4 text-gray-300">
+                      <FaShieldAlt size={60} />
+                      <p className="text-xl font-black uppercase tracking-widest text-gray-300">No Authority Nodes Found</p>
                     </div>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="text-center py-4">No roles found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-      
-      {/* Pagination */}
-      {!isLoading && (
+
+      {/* PAGINATION SECTION */}
+      <div className="mt-8">
         <ProfessionalPagination
           count={totalRoles}
           page={currentPage}
           rowsPerPage={itemsPerPage}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={setItemsPerPage}
         />
-      )}
+      </div>
 
-      {/* Edit Modal */}
+      {/* MODAL SYSTEM */}
       {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4 sm:mx-auto p-6 animate-scale-in relative">
-              
-              {/* Modal Header */}
-              <div className="flex justify-between items-center border-b pb-4 mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">{selectedRole ? 'Edit Role' : 'Add Role'}</h3>
-                <button
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="text-gray-400 hover:text-red-500 transition"
-                  aria-label="Close modal"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in">
+            <div className="p-10 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                  <FaShieldAlt className="text-blue-600" />
+                  {selectedRole ? 'Edit Role' : 'Add Role'}
+                </h3>
+                <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest">
+                  {selectedRole ? `ID: ${selectedRole.roleID}` : 'Role Management'}
+                </p>
               </div>
-
-              {/* Modal Content */}
-              <div className="max-h-[70vh] overflow-y-auto">
-                <RoleAdd
-                  isEdit={!!selectedRole}
-                  roleData={selectedRole}
-                  onSave={handleSave}
-                  onClose={() => setIsEditModalOpen(false)}
-                  showTitle={false}
-                />
-              </div>
+              <button onClick={() => setIsEditModalOpen(false)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-xl text-gray-300 hover:text-red-500 transition-all hover:rotate-90"><FaTimesCircle size={28}/></button>
+            </div>
+            <div className="p-10 overflow-y-auto flex-1 custom-scrollbar text-center">
+              <RoleAdd 
+                isEdit={!!selectedRole} 
+                roleData={selectedRole} 
+                onClose={() => setIsEditModalOpen(false)} 
+                onSave={() => { fetchRoles(); setIsEditModalOpen(false); }}
+                showTitle={false}
+              />
             </div>
           </div>
-        )}
+        </div>
+      )}
 
     </div>
   );

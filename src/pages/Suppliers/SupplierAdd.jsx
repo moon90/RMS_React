@@ -1,170 +1,289 @@
-
 import React, { useState, useEffect } from 'react';
-import { createSupplier } from '../../services/supplierService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { createSupplier, updateSupplier } from '../../services/supplierService';
+import { hasPermission } from '../../utils/permissionUtils';
 import FormCard from '../../components/FormCard.jsx';
 import { toast } from 'react-toastify';
+import { 
+  FaTruckLoading, 
+  FaSave, 
+  FaUndo, 
+  FaCheckCircle, 
+  FaTimesCircle,
+  FaUserTie,
+  FaPhone,
+  FaEnvelope,
+  FaMapMarkerAlt
+} from 'react-icons/fa';
 
-const ValidationToast = ({ title, messages }) => (
-  <div>
-    <strong>{title}</strong>
-    <ul style={{ whiteSpace: 'pre-wrap', textAlign: 'left', paddingLeft: '20px' }}>
-      {messages.map((msg, index) => (
-        <li key={index}>{msg}</li>
-      ))}
-    </ul>
-  </div>
-);
-
-const SupplierAdd = () => {
-  const [supplierName, setSupplierName] = useState('');
-  const [contactPerson, setContactPerson] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('');
-  const [status, setStatus] = useState(true);
+const SupplierAdd = ({ isEdit = false, supplierData = null, onClose, onSave, showTitle = true }) => {
+  const [formData, setFormData] = useState({
+    supplierName: '',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    address: '',
+    status: true
+  });
   const [errors, setErrors] = useState({});
-  const { user } = useAuth();
-  const navigate = useNavigate();
 
-  const canCreate = user?.permissions?.includes('SUPPLIER_CREATE');
+  const canCreate = hasPermission('SUPPLIER_CREATE');
+  const canUpdate = hasPermission('SUPPLIER_UPDATE');
 
   useEffect(() => {
-    if (!canCreate) {
-      navigate('/access-denied');
+    if (isEdit && supplierData) {
+      setFormData({
+        id: supplierData.id,
+        supplierName: supplierData.supplierName || '',
+        contactPerson: supplierData.contactPerson || '',
+        phone: supplierData.phone || '',
+        email: supplierData.email || '',
+        address: supplierData.address || '',
+        status: supplierData.status ?? true
+      });
     }
-  }, [canCreate, navigate]);
+  }, [isEdit, supplierData]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const handleReset = () => {
+    setErrors({});
+    if (isEdit && supplierData) {
+      setFormData({
+        id: supplierData.id,
+        supplierName: supplierData.supplierName || '',
+        contactPerson: supplierData.contactPerson || '',
+        phone: supplierData.phone || '',
+        email: supplierData.email || '',
+        address: supplierData.address || '',
+        status: supplierData.status ?? true
+      });
+    } else {
+      setFormData({
+        supplierName: '',
+        contactPerson: '',
+        phone: '',
+        email: '',
+        address: '',
+        status: true
+      });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
 
+    if (isEdit && !canUpdate) {
+      toast.error('Identity Authorization: Update denied.');
+      return;
+    }
+    if (!isEdit && !canCreate) {
+      toast.error('Identity Authorization: Creation denied.');
+      return;
+    }
+
     try {
-      await createSupplier({ supplierName, contactPerson, phone, email, address, status });
-      toast.success('Supplier created successfully!');
-      navigate('/suppliers/list');
-    } catch (err) {
-      if (err.response && err.response.data && err.response.data.details) {
-        const newErrors = {};
-        const errorMessages = err.response.data.details.map(error => {
-          newErrors[error.propertyName.toLowerCase()] = error.errorMessage;
-          return `- ${error.errorMessage}`;
-        });
-        setErrors(newErrors);
-        toast.error(<ValidationToast title={err.response.data.message} messages={errorMessages} />);
+      let response;
+      if (isEdit) {
+        response = await updateSupplier(formData.id, formData);
       } else {
-        toast.error(err.response?.data?.message || err.message || 'An error occurred.');
+        response = await createSupplier(formData);
       }
-      console.error(err);
+
+      if (response.data && response.data.isSuccess) {
+        toast.success(isEdit ? 'Supplier updated.' : 'Supplier saved.');
+        if (onSave) onSave();
+        if (onClose) onClose();
+      } else {
+        const errorResponse = response.data;
+        if (errorResponse && errorResponse.details && errorResponse.details.length > 0) {
+          const apiErrors = {};
+          errorResponse.details.forEach(err => {
+            apiErrors[err.propertyName.toLowerCase()] = err.errorMessage;
+          });
+          setErrors(apiErrors);
+          toast.error('Constraint violation: Supplier rejected.');
+        } else {
+          toast.error(errorResponse?.message || 'Server-side protocol error.');
+        }
+      }
+    } catch (error) {
+      toast.error('Critical failure: Supplier registry unreachable.');
+      console.error('Supplier operation error:', error);
     }
   };
 
-  if (!canCreate) {
-    return null;
-  }
-
   return (
-    <div className="p-3 max-w-4xl mx-auto">
+    <div className="p-3 max-w-4xl mx-auto text-left">
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New Supplier</h2>
+        {showTitle && (
+          <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <FaTruckLoading className="text-white text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+                {isEdit ? 'Edit Supplier' : 'Add Supplier'}
+              </h2>
+              <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">Manage supply chain partners</p>
+            </div>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="supplierName" className="block text-sm font-medium text-gray-700 mb-1">Supplier Name</label>
-              <input
-                type="text"
-                id="supplierName"
-                name="supplierName"
-                value={supplierName}
-                placeholder="Enter supplier name"
-                onChange={(e) => setSupplierName(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.supplierName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.supplierName && <p className="text-red-500 text-xs mt-1">{errors.supplierName}</p>}
+        <form onSubmit={handleSubmit} className="space-y-10">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Supplier Name */}
+            <div className="relative group md:col-span-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Supplier Name
+              </label>
+              <div className="relative">
+                <FaTruckLoading className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                <input
+                  type="text"
+                  name="supplierName"
+                  value={formData.supplierName}
+                  onChange={handleInputChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 rounded-2xl outline-none transition-all font-bold text-gray-700 ${
+                    errors.suppliername ? 'border-red-100 focus:border-red-400' : 'border-transparent focus:border-blue-100 focus:bg-white'
+                  }`}
+                  placeholder="e.g. Acme Corp"
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="contactPerson" className="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
-              <input
-                type="text"
-                id="contactPerson"
-                name="contactPerson"
-                value={contactPerson}
-                placeholder="Enter contact person"
-                onChange={(e) => setContactPerson(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.contactPerson ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.contactPerson && <p className="text-red-500 text-xs mt-1">{errors.contactPerson}</p>}
+
+            {/* Contact Person */}
+            <div className="relative group md:col-span-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Contact Person
+              </label>
+              <div className="relative">
+                <FaUserTie className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                <input
+                  type="text"
+                  name="contactPerson"
+                  value={formData.contactPerson}
+                  onChange={handleInputChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 rounded-2xl outline-none transition-all font-bold text-gray-700 ${
+                    errors.contactperson ? 'border-red-100 focus:border-red-400' : 'border-transparent focus:border-blue-100 focus:bg-white'
+                  }`}
+                  placeholder="e.g. John Doe"
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-              <input
-                type="text"
-                id="phone"
-                name="phone"
-                value={phone}
-                placeholder="Enter phone number"
-                onChange={(e) => setPhone(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.phone ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
+
+            {/* Phone */}
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Phone
+              </label>
+              <div className="relative">
+                <FaPhone className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 rounded-2xl outline-none transition-all font-bold text-gray-700 ${
+                    errors.phone ? 'border-red-100 focus:border-red-400' : 'border-transparent focus:border-blue-100 focus:bg-white'
+                  }`}
+                  placeholder="+880 1xxx xxxxx"
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={email}
-                placeholder="Enter email address"
-                onChange={(e) => setEmail(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+
+            {/* Email */}
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Email
+              </label>
+              <div className="relative">
+                <FaEnvelope className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 rounded-2xl outline-none transition-all font-bold text-gray-700 ${
+                    errors.email ? 'border-red-100 focus:border-red-400' : 'border-transparent focus:border-blue-100 focus:bg-white'
+                  }`}
+                  placeholder="e.g. john@example.com"
+                  required
+                />
+              </div>
             </div>
-            <div className="md:col-span-2">
-              <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-              <textarea
-                id="address"
-                name="address"
-                value={address}
-                placeholder="Enter address"
-                onChange={(e) => setAddress(e.target.value)}
-                rows="3"
-                className={`w-full px-4 py-2 border ${errors.address ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              ></textarea>
-              {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
+
+            {/* Address */}
+            <div className="md:col-span-2 relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Address
+              </label>
+              <div className="relative">
+                <FaMapMarkerAlt className="absolute left-5 top-6 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                <textarea
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 rounded-2xl outline-none transition-all font-bold text-gray-700 min-h-[120px] ${
+                    errors.address ? 'border-red-100 focus:border-red-400' : 'border-transparent focus:border-blue-100 focus:bg-white'
+                  }`}
+                  placeholder="Enter full address..."
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                id="status"
-                name="status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value === 'true')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
+
+            {/* Status */}
+            <div className="relative group md:col-span-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Status
+              </label>
+              <div className="flex gap-4 p-1 bg-gray-50 rounded-2xl border-2 border-transparent focus-within:border-blue-100 focus-within:bg-white transition-all">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, status: true }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                    formData.status ? 'bg-white text-green-600 shadow-sm border border-green-100' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <FaCheckCircle className={formData.status ? 'text-green-500' : 'text-gray-300'} /> Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, status: false }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                    !formData.status ? 'bg-white text-red-600 shadow-sm border border-red-100' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <FaTimesCircle className={!formData.status ? 'text-red-500' : 'text-gray-300'} /> Inactive
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          {/* ACTIONS */}
+          <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-50">
             <button
               type="button"
-              onClick={() => navigate('/suppliers/list')}
-              className="px-5 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition"
+              onClick={() => { handleReset(); if(onClose) onClose(); }}
+              className="px-8 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 hover:text-gray-600 transition-all flex items-center gap-2"
             >
-              Cancel
+              <FaUndo /> Reset
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
+              className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 transition-all flex items-center gap-2"
             >
-              Add Supplier
+              <FaSave /> {isEdit ? 'Update' : 'Save'}
             </button>
           </div>
         </form>

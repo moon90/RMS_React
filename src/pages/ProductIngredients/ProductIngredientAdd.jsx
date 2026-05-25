@@ -1,269 +1,333 @@
-import React, { useState, useEffect } from 'react';
-import { createProductIngredient } from '../../services/productIngredientService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createProductIngredient, updateProductIngredient, deleteProductIngredient } from '../../services/productIngredientService';
 import { getAllProducts } from '../../services/productService';
 import { getAllIngredients } from '../../services/ingredientService';
 import { getAllUnits } from '../../services/unitService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { hasPermission } from '../../utils/permissionUtils';
 import FormCard from '../../components/FormCard.jsx';
 import { toast } from 'react-toastify';
-import { FaTrash } from 'react-icons/fa';
+import { 
+  FaFlask, 
+  FaSave, 
+  FaUndo, 
+  FaBoxOpen, 
+  FaLeaf, 
+  FaWeightHanging, 
+  FaPlus, 
+  FaTrashAlt,
+  FaBalanceScale,
+  FaClipboardList,
+  FaCheckCircle
+} from 'react-icons/fa';
 
-const ValidationToast = ({ title, messages }) => (
-  <div>
-    <strong>{title}</strong>
-    <ul style={{ whiteSpace: 'pre-wrap', textAlign: 'left', paddingLeft: '20px' }}>
-      {messages.map((msg, index) => (
-        <li key={index}>{msg}</li>
-      ))}
-    </ul>
-  </div>
-);
-
-const ProductIngredientAdd = () => {
+const ProductIngredientAdd = ({ isEdit, data, onSave, onClose, showTitle = true }) => {
   const [productID, setProductID] = useState('');
-  const [ingredients, setIngredients] = useState([{ ingredientID: '', quantity: '', unitID: '', remarks: '', status: true, availableQuantity: 0 }]);
-  const [allProducts, setAllProducts] = useState([]);
-  const [allIngredients, setAllIngredients] = useState([]);
-  const [allUnits, setAllUnits] = useState([]);
-  
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const [rows, setRows] = useState([
+    { id: Date.now(), ingredientID: '', quantity: '', unitID: '', remarks: '', isExisting: false }
+  ]);
 
-  const canCreate = user?.permissions?.includes('PRODUCT_INGREDIENT_CREATE');
+  const [dependencies, setDependencies] = useState({
+    products: [],
+    ingredients: [],
+    units: []
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
+  const canModify = isEdit ? hasPermission('PRODUCT_INGREDIENT_UPDATE') : hasPermission('PRODUCT_INGREDIENT_CREATE');
+
+  const fetchDependencies = useCallback(async () => {
+    try {
+      const [productsRes, ingredientsRes, unitsRes] = await Promise.all([
+        getAllProducts({ pageNumber: 1, pageSize: 1000, status: true }),
+        getAllIngredients({ pageNumber: 1, pageSize: 1000, status: true }),
+        getAllUnits({ pageNumber: 1, pageSize: 1000, status: true }),
+      ]);
+
+      const normalize = (res, idKey, nameKey) => {
+        if (!res.data || !res.data.isSuccess) return [];
+        const data = res.data.data;
+        const items = data?.items || data?.Items || (Array.isArray(data) ? data : []);
+        
+        return items.map(i => {
+          const id = i[idKey] || i.id || i.Id || i.productID || i.ingredientID || i.unitID;
+          const name = i[nameKey] || i.name || i.Name || i.productName || i.ingredientName || i.unitName || i.shortCode;
+          return { ...i, id, name, productName: name, ingredientName: name }; // Keep original + common aliases
+        });
+      };
+
+      setDependencies({
+        products: normalize(productsRes, 'productID', 'productName'),
+        ingredients: normalize(ingredientsRes, 'ingredientID', 'name'),
+        units: normalize(unitsRes, 'id', 'name'),
+      });
+    } catch (error) {
+      console.error('Dependency sync failure:', error);
+      toast.error('System failed to sync material registries.');
+    }
+  }, []);
 
   useEffect(() => {
-    if (!canCreate) {
-      navigate('/access-denied');
-    }
-
-    const fetchDependencies = async () => {
-      try {
-        const [productsRes, ingredientsRes, unitsRes] = await Promise.all([
-          getAllProducts({ pageNumber: 1, pageSize: 1000, status: true }),
-          getAllIngredients({ pageNumber: 1, pageSize: 1000, status: true }),
-          getAllUnits({ pageNumber: 1, pageSize: 1000, status: true }),
-        ]);
-
-        if (productsRes.data.isSuccess) {
-          setAllProducts(productsRes.data.data.items);
-        }
-        if (ingredientsRes.data.isSuccess) {
-          setAllIngredients(ingredientsRes.data.data.items);
-        }
-        if (unitsRes.data.isSuccess) {
-          setAllUnits(unitsRes.data.data.items);
-        }
-      } catch (error) {
-        toast.error('Failed to load dependencies.');
-        console.error(error);
-      }
-    };
-
     fetchDependencies();
-  }, [canCreate, navigate]);
-
-  const handleIngredientChange = (index, event) => {
-    const { name, value } = event.target;
-    const newIngredients = [...ingredients];
-    newIngredients[index][name] = value;
-
-    if (name === 'ingredientID') {
-      const selectedIngredient = allIngredients.find(ing => ing.ingredientID === parseInt(value));
-      if (selectedIngredient) {
-        newIngredients[index].availableQuantity = selectedIngredient.quantityInStock;
+    if (data && data.productID) {
+      setProductID(data.productID);
+      // If editing a specific mapping, or just entering from a product context
+      if (isEdit && data.productIngredientID) {
+        setRows([{
+          id: data.productIngredientID,
+          productIngredientID: data.productIngredientID,
+          ingredientID: data.ingredientID || '',
+          quantity: data.quantity || '',
+          unitID: data.unitID || '',
+          remarks: data.remarks || '',
+          isExisting: true
+        }]);
       }
     }
+  }, [isEdit, data, fetchDependencies]);
 
-    if (name === 'quantity') {
-        const available = newIngredients[index].availableQuantity;
-        if (parseFloat(value) > available) {
-            toast.error(`Only ${available} in stock for this ingredient.`);
-        }
+  const addRow = () => {
+    setRows([...rows, { id: Date.now(), ingredientID: '', quantity: '', unitID: '', remarks: '', isExisting: false }]);
+  };
+
+  const removeRow = (id) => {
+    if (rows.length > 1) {
+      setRows(rows.filter(row => row.id !== id));
     }
-
-    setIngredients(newIngredients);
   };
 
-  const addIngredient = () => {
-    setIngredients([...ingredients, { ingredientID: '', quantity: '', unitID: '', remarks: '', status: true, availableQuantity: 0 }]);
-  };
-
-  const removeIngredient = (index) => {
-    const newIngredients = ingredients.filter((_, i) => i !== index);
-    setIngredients(newIngredients);
+  const handleRowChange = (id, field, value) => {
+    const updatedRows = rows.map(row => {
+      if (row.id === id) {
+        return { ...row, [field]: value };
+      }
+      return row;
+    });
+    setRows(updatedRows);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-
-    if (!productID) {
-      toast.error('Please select a product.');
+    if (!canModify) {
+      toast.error('Authorization Denied.');
       return;
     }
 
+    if (!productID) {
+      toast.error('Please select a Target Product.');
+      return;
+    }
+
+    // Validation for unique ingredients
+    const selectedIngredients = rows.map(r => r.ingredientID).filter(id => id !== '');
+    const uniqueIngredients = new Set(selectedIngredients);
+    if (selectedIngredients.length !== uniqueIngredients.size) {
+      toast.error('Duplicate ingredients detected. Each component must be unique.');
+      return;
+    }
+
+    setIsLoading(true);
+    let successCount = 0;
+    let failMessages = [];
+
     try {
-      for (const ingredient of ingredients) {
-        if (!ingredient.ingredientID || !ingredient.quantity || !ingredient.unitID) {
-          toast.error('Please fill all fields for each ingredient.');
-          return;
-        }
-        if (parseFloat(ingredient.quantity) > ingredient.availableQuantity) {
-            toast.error(`Not enough stock for ${allIngredients.find(i => i.ingredientID === parseInt(ingredient.ingredientID)).name}.`);
-            return;
-        }
+      const activeRows = rows.filter(row => row.ingredientID && row.quantity && row.unitID);
+      
+      if (activeRows.length === 0) {
+        toast.warn('Protocol empty. No components defined.');
+        setIsLoading(false);
+        return;
+      }
 
-        const productIngredientData = {
+      for (const row of activeRows) {
+        const payload = {
           productID: parseInt(productID),
-          ingredientID: parseInt(ingredient.ingredientID),
-          quantity: parseFloat(ingredient.quantity),
-          unitID: parseInt(ingredient.unitID),
-          remarks: ingredient.remarks,
-          status: ingredient.status,
+          ingredientID: parseInt(row.ingredientID),
+          quantity: parseFloat(row.quantity),
+          unitID: parseInt(row.unitID),
+          remarks: row.remarks || '',
+          productIngredientID: row.productIngredientID || 0,
+          status: true
         };
-        await createProductIngredient(productIngredientData);
+
+        try {
+          const response = row.isExisting 
+            ? await updateProductIngredient(row.productIngredientID, payload)
+            : await createProductIngredient(payload);
+          
+          if (response.data.isSuccess) successCount++;
+          else failMessages.push(response.data.message || `Component ${row.id} failed.`);
+        } catch (err) {
+          failMessages.push(err.response?.data?.message || `Network error for component ${row.id}.`);
+        }
       }
 
-      toast.success('Product ingredients created successfully!');
-      navigate('/product-ingredients/list');
-    } catch (err) {
-      if (err.response && err.response.data && err.response.data.details) {
-        const errorMessages = err.response.data.details.map(error => {
-          return `- ${error.errorMessage}`;
-        });
-        
-        toast.error(<ValidationToast title={err.response.data.message} messages={errorMessages} />);
-      } else {
-        toast.error(err.response?.data?.message || err.message || 'An error occurred.');
+      if (successCount > 0) {
+        toast.success(`Protocol Synchronized: ${successCount} components saved.`);
       }
-      console.error(err);
+      
+      if (failMessages.length > 0) {
+        failMessages.forEach(msg => toast.error(msg));
+      }
+
+      if (successCount > 0) {
+        if (onSave) onSave();
+        if (onClose) onClose();
+      }
+    } catch (error) {
+      toast.error('Critical failure: Protocol save interrupted.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (!canCreate) {
-    return null;
-  }
-
   return (
-    <div className="p-3 max-w-4xl mx-auto">
+    <div className={`p-1 ${showTitle ? 'max-w-6xl mx-auto' : ''} text-left`}>
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New Product Ingredient</h2>
+        {showTitle && (
+          <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
+            <div className="p-3 bg-purple-600 rounded-2xl shadow-lg shadow-purple-100">
+              <FaFlask className="text-white text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight">Add Ingredients</h2>
+              <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">Manage ingredients for products</p>
+            </div>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div>
-            <label htmlFor="productID" className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-            <select
-              id="productID"
-              name="productID"
-              value={productID}
-              onChange={(e) => setProductID(e.target.value)}
-              required
-              className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-            >
-              <option value="">Select Product</option>
-              {allProducts.map(prod => (
-                <option key={prod.id} value={prod.id}>{prod.productName}</option>
-              ))}
-            </select>
-            
+        <form onSubmit={handleSubmit} className="space-y-10">
+          {/* PRODUCT SELECTION */}
+          <div className="bg-gray-50 p-8 rounded-[2rem] border-2 border-gray-100/50">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-4 block">Select Product</label>
+            <div className="relative group max-w-xl">
+              <FaBoxOpen className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-purple-500 transition-colors" />
+                <select
+                  value={productID}
+                  onChange={(e) => setProductID(e.target.value)}
+                  disabled={isEdit}
+                  className="w-full pl-16 pr-8 py-5 bg-white border-2 border-transparent rounded-2xl outline-none focus:border-purple-200 transition-all font-black text-gray-700 appearance-none shadow-sm disabled:opacity-50"
+                  required
+                >
+                  <option value="">Select Target Product</option>
+                  {dependencies.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+            </div>
           </div>
 
-          <hr />
-
-          {ingredients.map((ingredient, index) => (
-            <div key={index} className="grid grid-cols-1 md:grid-cols-7 gap-6 border-b pb-4">
-              <div className="md:col-span-2">
-                <label htmlFor={`ingredientID-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Ingredient</label>
-                <select
-                  id={`ingredientID-${index}`}
-                  name="ingredientID"
-                  value={ingredient.ingredientID}
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="">Select Ingredient</option>
-                  {allIngredients.map(ing => (
-                    <option key={ing.ingredientID} value={ing.ingredientID}>{ing.name} ({ing.quantityInStock})</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor={`quantity-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                <input
-                  type="number"
-                  id={`quantity-${index}`}
-                  name="quantity"
-                  value={ingredient.quantity}
-                  placeholder="Qty"
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  required
-                  step="0.01"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label htmlFor={`unitID-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                <select
-                  id={`unitID-${index}`}
-                  name="unitID"
-                  value={ingredient.unitID}
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="">Unit</option>
-                  {allUnits.map(unit => (
-                    <option key={unit.id} value={unit.id}>{unit.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label htmlFor={`remarks-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
-                <input
-                  type="text"
-                  id={`remarks-${index}`}
-                  name="remarks"
-                  value={ingredient.remarks}
-                  placeholder="Remarks"
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => removeIngredient(index)}
-                  className="p-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition"
-                >
-                  <FaTrash />
-                </button>
-              </div>
+          {/* INGREDIENTS GRID */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-4">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                <FaLeaf className="text-purple-400" />
+                Ingredients
+              </h3>
+              <button 
+                type="button" 
+                onClick={addRow}
+                className="flex items-center gap-2 px-6 py-3 bg-purple-50 text-purple-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-purple-100 transition-all border border-purple-100"
+              >
+                <FaPlus /> Add Row
+              </button>
             </div>
-          ))}
 
-          <button
-            type="button"
-            onClick={addIngredient}
-            className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition"
-          >
-            Add Ingredient
-          </button>
+            <div className="overflow-x-auto rounded-[2rem] border border-gray-100 shadow-sm">
+              <table className="w-full text-left border-collapse bg-white">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
+                    <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Ingredient</th>
+                    <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Quantity</th>
+                    <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Unit</th>
+                    <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Remarks</th>
+                    <th className="px-6 py-5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {rows.map((row) => (
+                    <tr key={row.id} className="hover:bg-gray-50/30 transition-colors">
+                      <td className="px-4 py-4 min-w-[200px]">
+                        <select
+                          value={row.ingredientID}
+                          onChange={(e) => handleRowChange(row.id, 'ingredientID', e.target.value)}
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-purple-100 transition-all font-bold text-gray-700 text-sm appearance-none"
+                          required
+                        >
+                          <option value="">Select Ingredient</option>
+                          {dependencies.ingredients
+                            .filter(i => !rows.find(r => r.id !== row.id && r.ingredientID === i.id.toString()))
+                            .map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-4 w-[120px]">
+                        <input
+                          type="number"
+                          step="0.001"
+                          value={row.quantity}
+                          onChange={(e) => handleRowChange(row.id, 'quantity', e.target.value)}
+                          placeholder="0.000"
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-purple-100 transition-all font-bold text-gray-700 text-sm"
+                          required
+                        />
+                      </td>
+                      <td className="px-4 py-4 w-[150px]">
+                        <select
+                          value={row.unitID}
+                          onChange={(e) => handleRowChange(row.id, 'unitID', e.target.value)}
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-purple-100 transition-all font-bold text-gray-700 text-sm appearance-none"
+                          required
+                        >
+                          <option value="">Unit</option>
+                          {dependencies.units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-4">
+                        <input
+                          type="text"
+                          value={row.remarks}
+                          onChange={(e) => handleRowChange(row.id, 'remarks', e.target.value)}
+                          placeholder="Context..."
+                          className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-purple-100 transition-all font-bold text-gray-700 text-sm"
+                        />
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <button 
+                          type="button" 
+                          onClick={() => removeRow(row.id)}
+                          className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        >
+                          <FaTrashAlt size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          {/* FOOTER ACTIONS */}
+          <div className="flex items-center justify-end gap-4 pt-10 border-t border-gray-100">
             <button
               type="button"
-              onClick={() => navigate('/product-ingredients/list')}
-              className="px-5 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition"
+              onClick={() => { if(onClose) onClose(); }}
+              className="px-8 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 hover:text-gray-600 transition-all flex items-center gap-2"
             >
-              Cancel
+              <FaUndo /> Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
+              disabled={isLoading}
+              className="px-10 py-4 bg-purple-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-purple-500/20 hover:bg-purple-700 hover:-translate-y-1 transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              Add Product Ingredients
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <FaSave /> {isEdit ? 'Update' : 'Save'}
+                </>
+              )}
             </button>
           </div>
         </form>
@@ -273,4 +337,3 @@ const ProductIngredientAdd = () => {
 };
 
 export default ProductIngredientAdd;
-''

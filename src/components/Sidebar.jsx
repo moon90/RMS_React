@@ -1,235 +1,235 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FaBoxOpen, FaChevronDown, FaChevronRight,
   FaClipboardList, FaListUl, FaUtensils, FaHome, FaUsers, FaCog, FaPlus, FaEdit, FaTrash, FaFileAlt, FaUserShield,
-  FaTruck, FaIndustry, FaUserFriends, FaUserTie, FaExchangeAlt, FaLeaf, FaBlender, FaCashRegister, FaTable, FaShoppingCart, FaTags // Add new icons
+  FaTruck, FaIndustry, FaUserFriends, FaUserTie, FaExchangeAlt, FaLeaf, FaBlender, FaCashRegister, FaTable, FaShoppingCart, FaTags, FaBuilding, FaChartLine, FaRobot, FaShieldAlt
 } from 'react-icons/fa';
 import { NavLink } from 'react-router-dom';
-import { hasMenuPermission } from '../utils/permissionUtils';
+import { hasMenuPermission, hasPermission } from '../utils/permissionUtils';
 import logoNew from '../assets/images/logo_new.png';
+import { systemSettingService } from '../services/systemSettingService';
 
-const menu = [ // Re-add the hardcoded menu array
+const menu = [
+  {
+    label: 'Daily Operations',
+    translationKey: 'sidebar.daily_operations',
+    isHeader: true
+  },
   {
     label: 'Dashboard',
+    translationKey: 'sidebar.dashboard',
     icon: FaHome,
     to: '/dashboard',
     permissionKey: 'DASHBOARD_VIEW'
   },
   {
-    label: 'User Management',
-    icon: FaUsers,
-    children: [
-      {
-        label: 'Users',
-        icon: FaUsers,
-        children: [
-          { label: 'User List', to: '/users/list', permissionKey: 'USER_VIEW' },
-          { label: 'User Add', to: '/users/add', permissionKey: 'USER_CREATE' },
-        ],
-      },
-      {
-        label: 'Roles',
-        icon: FaUserShield,
-        children: [
-          { label: 'Role List', to: '/roles/list', permissionKey: 'ROLE_VIEW' },
-          { label: 'Role Add', to: '/roles/add', permissionKey: 'ROLE_CREATE' },
-          { label: 'User Access Role', to: '/roles/access_role', permissionKey: 'USER_ACCESS_ROLE_VIEW' },
-          { label: 'Permission Setup', to: '/roles/permission_setup', permissionKey: 'PERMISSION_SETUP_VIEW' },
-          { label: 'Role Permissions', to: '/roles/role_permissions', permissionKey: 'ROLE_PERMISSION_VIEW' },
-          { label: 'Menu Assignments', to: '/roles/menu_assignments', permissionKey: 'MENU_ASSIGNMENT_VIEW' },
-          { label: 'Menu Setup', to: '/roles/menu_setup', permissionKey: 'MENU_SETUP_VIEW' },
-        ],
-      },
-      {
-        label: 'Permissions',
-        icon: FaCog,
-        children: [
-          { label: 'Permission List', to: '/permissions/list', permissionKey: 'PERMISSION_VIEW' },
-          { label: 'Permission Add', to: '/permissions/add', permissionKey: 'PERMISSION_CREATE' },
-        ],
-      },
-    ],
-  },
-  {
-    label: 'Menu Management',
-    icon: FaClipboardList,
-    children: [
-      { label: 'Menu List', to: '/menus/list', permissionKey: 'MENU_VIEW' },
-      { label: 'Menu Add', to: '/menus/add', permissionKey: 'MENU_CREATE' },
-    ],
-  },
-  {
-    label: 'Category Management',
-    icon: FaClipboardList,
-    children: [
-      { label: 'Category List', to: '/categories/list', permissionKey: 'CATEGORY_VIEW' },
-      { label: 'Category Add', to: '/categories/add', permissionKey: 'CATEGORY_CREATE' },
-    ],
-  },
-  {
-    label: 'Unit Management',
-    icon: FaListUl,
-    children: [
-      { label: 'Unit List', to: '/units/list', permissionKey: 'UNIT_VIEW' },
-      { label: 'Unit Add', to: '/units/add', permissionKey: 'UNIT_CREATE' },
-    ],
-  },
-  {
-    label: 'Supplier Management',
-    icon: FaTruck,
-    children: [
-      { label: 'Supplier List', to: '/suppliers/list', permissionKey: 'SUPPLIER_VIEW' },
-      { label: 'Supplier Add', to: '/suppliers/add', permissionKey: 'SUPPLIER_CREATE' },
-    ],
-  },
-  {
-    label: 'Manufacturer Management',
-    icon: FaIndustry,
-    children: [
-      { label: 'Manufacturer List', to: '/manufacturers/list', permissionKey: 'MANUFACTURER_VIEW' },
-      { label: 'Manufacturer Add', to: '/manufacturers/add', permissionKey: 'MANUFACTURER_CREATE' },
-    ],
-  },
-  {
-    label: 'Product Management',
-    icon: FaBoxOpen,
-    children: [
-      { label: 'Product List', to: '/products/list', permissionKey: 'PRODUCT_VIEW' },
-      { label: 'Product Add', to: '/products/add', permissionKey: 'PRODUCT_CREATE' },
-    ],
-  },
-  {
-    label: 'Order Management',
-    icon: FaShoppingCart,
-    children: [
-      { label: 'Order List', to: '/orders/list', permissionKey: 'ORDER_VIEW' },
-      { label: 'Order Add', to: '/orders/add', permissionKey: 'ORDER_CREATE' },
-    ],
-  },
-  {
-    label: 'Table Management',
-    icon: FaTable,
-    children: [
-      { label: 'Table List', to: '/dining-tables/list', permissionKey: 'DINING_TABLE_VIEW' },
-      { label: 'Table Add', to: '/dining-tables/add', permissionKey: 'DINING_TABLE_CREATE' },
-    ],
-  },
-  // New Customer Management
-  {
-    label: 'Customer Management',
-    icon: FaUserFriends,
-    children: [
-      { label: 'Customer List', to: '/customers/list', permissionKey: 'CUSTOMER_VIEW' },
-      { label: 'Customer Add', to: '/customers/add', permissionKey: 'CUSTOMER_CREATE' },
-    ],
-  },
-  // New Staff Management
-  {
-    label: 'Staff Management',
-    icon: FaUserTie,
-    children: [
-      { label: 'Staff List', to: '/staff/list', permissionKey: 'STAFF_VIEW' },
-      { label: 'Staff Add', to: '/staff/add', permissionKey: 'STAFF_CREATE' },
-    ],
-  },
-  // New Inventory Management
-  {
-    label: 'Inventory Management',
-    icon: FaBoxOpen,
-    children: [
-      { label: 'Inventory Dashboard', to: '/inventory', permissionKey: 'INVENTORY_DASHBOARD_VIEW' },
-      { label: 'Inventory List', to: '/inventory/list', permissionKey: 'INVENTORY_VIEW' },
-      { label: 'Inventory Add', to: '/inventory/add', permissionKey: 'INVENTORY_CREATE' },
-      { label: 'Low Stock', to: '/low-stock', permissionKey: 'LOW_STOCK_VIEW' },
-      { label: 'Purchases', to: '/purchases/list', permissionKey: 'PURCHASE_VIEW' },
-    ],
-  },
-  // New Stock Transaction Management
-  {
-    label: 'Stock Transaction Management',
-    icon: FaExchangeAlt,
-    children: [
-      { label: 'Stock Transaction List', to: '/stock-transactions/list', permissionKey: 'STOCK_TRANSACTION_VIEW' },
-      { label: 'Stock Transaction Add', to: '/stock-transactions/add', permissionKey: 'STOCK_TRANSACTION_CREATE' },
-    ],
-  },
-  // New Ingredient Management
-  {
-    label: 'Ingredient Management',
-    icon: FaLeaf,
-    children: [
-      { label: 'Ingredient List', to: '/ingredients/list', permissionKey: 'INGREDIENT_VIEW' },
-      { label: 'Ingredient Add', to: '/ingredients/add', permissionKey: 'INGREDIENT_CREATE' },
-    ],
-  },
-  // New Product Ingredient Management
-  {
-    label: 'Product Ingredient Management',
-    icon: FaBlender,
-    children: [
-      { label: 'Product Ingredient List', to: '/product-ingredients/list', permissionKey: 'PRODUCT_INGREDIENT_VIEW' },
-      { label: 'Product Ingredient Add', to: '/product-ingredients/add', permissionKey: 'PRODUCT_INGREDIENT_CREATE' },
-    ],
-  },
-  {
-    label: 'Audit Logs',
-    icon: FaFileAlt,
-    to: '/audit-logs',
-    permissionKey: 'AUDIT_LOGS_VIEW'
-  },
-
-  {
-    label: 'Kitchen',
-    icon: FaUtensils,
-    to: '/kitchen',
-    permissionKey: 'KITCHEN_VIEW'
-  },
-  {
-    label: 'POS',
+    label: 'POS Terminal',
+    translationKey: 'sidebar.pos_terminal',
     icon: FaCashRegister,
     to: '/pos',
     permissionKey: 'POS_VIEW'
   },
-  // New Promotions Management
   {
-    label: 'Promotions Management',
-    icon: FaTags,
+    label: 'Front of House',
+    translationKey: 'sidebar.pos',
+    icon: FaTable,
     children: [
-      { label: 'Promotion List', to: '/promotions/list', permissionKey: 'PROMOTION_VIEW' },
-      { label: 'Promotion Add', to: '/promotions/add', permissionKey: 'PROMOTION_CREATE' },
+      { label: 'Active Orders', translationKey: 'sidebar.orders', to: '/orders/list', permissionKey: 'ORDER_VIEW' },
+      { label: 'Kitchen Live', translationKey: 'sidebar.kitchen', to: '/kitchen', permissionKey: 'KITCHEN_VIEW' },
+      { label: 'Table Layout', translationKey: 'sidebar.tables', to: '/dining-tables/list', permissionKey: 'DINING_TABLE_VIEW' },
     ],
   },
-  // New Sales Management
   {
-    label: 'Sales Management',
-    icon: FaShoppingCart,
+    label: 'Production & Product Engineering',
+    translationKey: 'sidebar.production_engineering',
+    isHeader: true
+  },
+  {
+    label: 'Menu & Production',
+    translationKey: 'sidebar.products',
+    icon: FaUtensils,
     children: [
-      { label: 'Sales List', to: '/sales/list', permissionKey: 'SALES_VIEW' },
+      { label: 'Finished Products', translationKey: 'sidebar.product_list', to: '/products/list', permissionKey: 'PRODUCT_VIEW' },
+      { label: 'Menu Categories', translationKey: 'sidebar.categories', to: '/categories/list', permissionKey: 'CATEGORY_VIEW' },
+      { label: 'Product Recipes', translationKey: 'sidebar.product_ingredients', to: '/product-ingredients/list', permissionKey: 'PRODUCT_INGREDIENT_VIEW' },
+      { label: 'Measurement Units', translationKey: 'sidebar.units', to: '/units/list', permissionKey: 'UNIT_VIEW' },
+    ],
+  },
+  {
+    label: 'Supply Chain Management',
+    translationKey: 'sidebar.supply_chain',
+    isHeader: true
+  },
+  {
+    label: 'Inventory Control',
+    translationKey: 'sidebar.inventory',
+    icon: FaBoxOpen,
+    children: [
+      { label: 'Warehouse Nodes', translationKey: 'sidebar.warehouse', to: '/inventory/list', permissionKey: 'INVENTORY_VIEW' },
+      { label: 'Raw Materials', translationKey: 'sidebar.ingredient_list', to: '/ingredients/list', permissionKey: 'INGREDIENT_VIEW' },
+      { label: 'Procurement', translationKey: 'sidebar.purchases', to: '/purchases/list', permissionKey: 'PURCHASE_VIEW' },
+      { 
+        label: 'Movement', 
+        translationKey: 'sidebar.movement',
+        icon: FaExchangeAlt,
+        children: [
+           { label: 'Transactions', translationKey: 'sidebar.logistics', to: '/stock-transactions/list', permissionKey: 'STOCK_TRANSACTION_VIEW' },
+           { label: 'Transfers', translationKey: 'sidebar.transfer_list', to: '/stock-transfers/list', permissionKey: 'STOCK_TRANSFER_VIEW' },
+        ]
+      },
+      { 
+        label: 'System Intelligence', 
+        translationKey: 'sidebar.intelligence',
+        icon: FaRobot,
+        children: [
+           { label: 'Low Stock Alerts', translationKey: 'sidebar.low_stock', to: '/low-stock-alerts', permissionKey: 'INVENTORY_LOW_STOCK_VIEW' },
+           { label: 'Variance Audits', translationKey: 'sidebar.variance_ai', to: '/inventory-audits/list', permissionKey: 'INVENTORY_VIEW' },
+        ]
+      },
+    ],
+  },
+  {
+    label: 'CRM & Finance',
+    translationKey: 'sidebar.crm_finance',
+    isHeader: true
+  },
+  {
+    label: 'Finance & Sales',
+    translationKey: 'sidebar.sales',
+    icon: FaChartLine,
+    children: [
+      { label: 'Sales Records', translationKey: 'sidebar.sales_list', to: '/sales/list', permissionKey: 'SALE_VIEW' },
+      { label: 'Promotions', translationKey: 'sidebar.promotions', to: '/promotions/list', permissionKey: 'PROMOTION_VIEW' },
+    ],
+  },
+  {
+    label: 'Partners & CRM',
+    translationKey: 'sidebar.customers',
+    icon: FaUserFriends,
+    children: [
+      { label: 'Customer Base', translationKey: 'sidebar.customer_list', to: '/customers/list', permissionKey: 'CUSTOMER_VIEW' },
+      { label: 'Supply Partners', translationKey: 'sidebar.suppliers', to: '/suppliers/list', permissionKey: 'SUPPLIER_VIEW' },
+      { label: 'Manufacturers', translationKey: 'sidebar.manufacturers', to: '/manufacturers/list', permissionKey: 'MANUFACTURER_VIEW' },
+    ],
+  },
+  {
+    label: 'Security & HR',
+    translationKey: 'sidebar.security_hr',
+    isHeader: true
+  },
+  {
+    label: 'Team & Security',
+    translationKey: 'sidebar.user_management',
+    icon: FaUsers,
+    children: [
+      { label: 'Employee Roster', translationKey: 'sidebar.staff', to: '/staff/list', permissionKey: 'STAFF_VIEW' },
+      { label: 'Payroll AI', translationKey: 'sidebar.payroll', to: '/payroll', permissionKey: 'PAYROLL_VIEW' },
+      { label: 'Identity Registry', translationKey: 'sidebar.users', to: '/users/list', permissionKey: 'USER_VIEW' },
+      { label: 'User Access Role', translationKey: 'sidebar.user_access_role', to: '/roles/access_role', permissionKey: 'ROLE_VIEW' },
+      { label: 'Access Roles', translationKey: 'sidebar.roles', to: '/roles/list', permissionKey: 'ROLE_VIEW' },
+      { label: 'Role Permissions', translationKey: 'sidebar.role_permissions', to: '/roles/role_permissions', permissionKey: 'PERMISSION_VIEW' },
+      { label: 'Menu Assignments', translationKey: 'sidebar.menu_assignments', to: '/roles/menu_assignments', permissionKey: 'MENU_VIEW' },
+      { label: 'Audit Logs', translationKey: 'sidebar.audit_logs', to: '/audit-logs', permissionKey: 'AUDIT_LOG_VIEW' },
+    ],
+  },
+  {
+    label: 'System Network',
+    translationKey: 'sidebar.system_network',
+    isHeader: true
+  },
+  {
+    label: 'Settings & Network',
+    translationKey: 'sidebar.settings',
+    icon: FaCog,
+    children: [
+      { label: 'System Config', translationKey: 'sidebar.settings', to: '/settings', permissionKey: 'SYSTEM_SETTING_VIEW' },
+      { label: 'Branch Network', translationKey: 'sidebar.branches', to: '/branches/list', permissionKey: 'BRANCH_VIEW' },
+      { label: 'Navigation Setup', translationKey: 'sidebar.menus', to: '/menus/list', permissionKey: 'MENU_VIEW' },
     ],
   },
 ];
 
 export default function Sidebar({ collapsed }) {
+  const { t } = useTranslation();
   const [openMenus, setOpenMenus] = useState({});
   const [filteredMenu, setFilteredMenu] = useState([]);
+  const [dbLogo, setDbLogo] = useState(null);
+  const [restaurantName, setRestaurantName] = useState('BRNO');
+  const [restaurantAddress, setRestaurantAddress] = useState('');
+  const [restaurantPhone, setRestaurantPhone] = useState('');
+
+  useEffect(() => {
+    const fetchBranding = async () => {
+      try {
+        const data = await systemSettingService.getAllSettings();
+        if (data && (data.isSuccess || data.IsSuccess)) {
+          const settings = data.data || data.Data || [];
+          
+          const logoSetting = settings.find(s => (s.settingKey || s.SettingKey) === 'RestaurantLogo');
+          const logoValue = logoSetting?.settingValue || logoSetting?.SettingValue;
+          if (logoValue) setDbLogo(logoValue);
+
+          const nameSetting = settings.find(s => (s.settingKey || s.SettingKey) === 'RestaurantName');
+          const nameValue = nameSetting?.settingValue || nameSetting?.SettingValue;
+          if (nameValue) setRestaurantName(nameValue);
+
+          const addressSetting = settings.find(s => (s.settingKey || s.SettingKey) === 'RestaurantAddress');
+          const addressValue = addressSetting?.settingValue || addressSetting?.SettingValue;
+          if (addressValue) setRestaurantAddress(addressValue);
+
+          const phoneSetting = settings.find(s => (s.settingKey || s.SettingKey) === 'RestaurantPhone');
+          const phoneValue = phoneSetting?.settingValue || phoneSetting?.SettingValue;
+          if (phoneValue) setRestaurantPhone(phoneValue);
+        }
+      } catch (error) {
+        console.error("Failed to fetch sidebar branding:", error);
+      }
+    };
+    fetchBranding();
+  }, []);
 
   useEffect(() => {
     const filterMenuItems = (items) => {
-      return items.filter(item => {
+      return items.reduce((acc, item) => {
+        if (item.isHeader) {
+          acc.push({ ...item });
+          return acc;
+        }
         if (item.children) {
           const filteredChildren = filterMenuItems(item.children);
           if (filteredChildren.length > 0) {
-            item.children = filteredChildren;
-            return true;
+            acc.push({ ...item, children: filteredChildren });
           }
-          return false;
-        } else if (item.permissionKey) {
-          return hasMenuPermission(item.permissionKey);
+        } else if (item.to) {
+          if (hasMenuPermission(item.to) || (item.permissionKey && hasPermission(item.permissionKey))) {
+            acc.push({ ...item });
+          }
         }
-        return false;
+        return acc;
+      }, []).filter((item, idx, self) => {
+        // Remove headers that have no items until the next header
+        if (item.isHeader) {
+          let hasActualItems = false;
+          for (let i = idx + 1; i < self.length; i++) {
+            if (self[i].isHeader) break;
+            hasActualItems = true;
+            break;
+          }
+          return hasActualItems;
+        }
+        return true;
       });
     };
-    setFilteredMenu(filterMenuItems(menu));
+    
+    const updateMenu = () => {
+      setFilteredMenu(filterMenuItems(menu));
+    };
+
+    updateMenu();
+    window.addEventListener('permissionsUpdated', updateMenu);
+    
+    return () => window.removeEventListener('permissionsUpdated', updateMenu);
   }, []);
 
   const toggleMenu = (label) => {
@@ -240,6 +240,15 @@ export default function Sidebar({ collapsed }) {
   };
 
   const renderMenuItem = (item, level = 0) => {
+    if (item.isHeader) {
+      if (collapsed) return <div key={item.label} className="h-px bg-gray-100 my-4 mx-4" />;
+      return (
+        <div key={item.label} className="px-6 pt-6 pb-2">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{t(item.translationKey) || item.label}</p>
+        </div>
+      );
+    }
+
     const IconComponent = item.icon;
     const isOpen = openMenus[item.label];
 
@@ -258,7 +267,7 @@ export default function Sidebar({ collapsed }) {
             >
               <div className="flex items-center gap-3">
                 <SubIconComponent className={`text-md ${isSubOpen ? 'text-[#DA291C]' : 'text-gray-400'}`} />
-                {!collapsed && <span>{subItem.label}</span>}
+                {!collapsed && <span className="truncate text-xs font-bold uppercase tracking-tight">{t(subItem.translationKey) || subItem.label}</span>}
               </div>
               {subItem.children && !collapsed && (
                 <span className={isSubOpen ? 'text-[#DA291C]' : 'text-gray-400'}>
@@ -288,7 +297,7 @@ export default function Sidebar({ collapsed }) {
           >
             <div className="flex items-center gap-3">
               <SubIconComponent className="text-sm" />
-              {!collapsed && <span>{subItem.label}</span>}
+              {!collapsed && <span className="truncate text-[11px] font-bold uppercase tracking-widest">{t(subItem.translationKey) || subItem.label}</span>}
             </div>
           </NavLink>
         );
@@ -307,7 +316,7 @@ export default function Sidebar({ collapsed }) {
           >
             <div className="flex items-center gap-3">
               <IconComponent className={`text-xl transition-colors ${isOpen ? 'text-[#DA291C]' : 'text-gray-400 group-hover:text-red-500'}`} />
-              {!collapsed && <span className={`font-semibold ${isOpen ? 'text-[#DA291C]' : ''}`}>{item.label}</span>}
+              {!collapsed && <span className={`font-black text-xs uppercase tracking-tight ${isOpen ? 'text-[#DA291C]' : ''}`}>{t(item.translationKey) || item.label}</span>}
             </div>
             {item.children && !collapsed && (
               <span className={`transition-transform duration-200 ${isOpen ? 'text-[#DA291C]' : 'text-gray-400 opacity-50'}`}>
@@ -337,7 +346,7 @@ export default function Sidebar({ collapsed }) {
         >
           <div className="flex items-center gap-3">
             <IconComponent className="text-xl" />
-            {!collapsed && <span className="font-semibold">{item.label}</span>}
+            {!collapsed && <span className="font-black text-xs uppercase tracking-tight">{t(item.translationKey) || item.label}</span>}
           </div>
         </NavLink>
       );
@@ -352,20 +361,44 @@ export default function Sidebar({ collapsed }) {
       <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md p-6 mb-4 border-b border-gray-50 flex justify-center">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full p-1 bg-white shadow-md border-2 border-[#FFC72C] flex items-center justify-center overflow-hidden">
-            <img src={logoNew} alt="Logo" className="w-full h-full object-contain" />
+            <img id="app-logo" src={dbLogo || logoNew} alt="Logo" className="w-full h-full object-contain" />
           </div>
           {!collapsed && (
-            <div className="flex flex-col">
-              <span className="font-black text-[#DA291C] text-xl leading-none tracking-tighter">BRNO</span>
-              <span className="text-[10px] text-yellow-600 font-bold uppercase tracking-widest mt-1">Management</span>
+            <div className="flex flex-col overflow-hidden">
+              <span id="app-name" className="font-black text-[#DA291C] text-xl leading-tight tracking-tighter truncate w-44">
+                {restaurantName}
+              </span>
+              <span className="text-[10px] text-yellow-600 font-bold uppercase tracking-widest mt-0.5">
+                Management
+              </span>
             </div>
           )}
         </div>
       </div>
 
-      <nav className="px-4 pb-8 space-y-1">
+      <nav className="px-4 pb-8 space-y-1 flex-1">
         {filteredMenu.map(renderMenuItem)}
       </nav>
+
+      {/* Sidebar Footer Info */}
+      {!collapsed && (restaurantAddress || restaurantPhone) && (
+        <div className="mt-auto p-6 bg-gray-50 border-t border-gray-100">
+          <div className="space-y-3">
+            {restaurantAddress && (
+              <div className="flex gap-2">
+                <FaHome className="text-gray-400 mt-1 flex-shrink-0 text-xs" />
+                <p className="text-[11px] text-gray-500 leading-tight">{restaurantAddress}</p>
+              </div>
+            )}
+            {restaurantPhone && (
+              <div className="flex items-center gap-2">
+                <FaUserFriends className="text-gray-400 flex-shrink-0 text-xs" />
+                <p className="text-[11px] text-gray-500 font-bold">{restaurantPhone}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

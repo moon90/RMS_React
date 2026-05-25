@@ -1,19 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { useTranslation } from 'react-i18next';
+import systemService from '../../services/systemService';
 
 // Import assets
 import logoNew from '../../assets/images/logo_new.png';
 import foodBg from '../../assets/images/food_bg.png';
 
 const LoginPage = () => {
+  const { t } = useTranslation();
   const [userName, setUserName] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkInitialization = async () => {
+      try {
+        const response = await systemService.getStatus();
+        if (!response.data.data.isInitialized) {
+          navigate('/setup');
+        }
+      } catch (err) {
+        console.error("Critical system check failed", err);
+      }
+    };
+    checkInitialization();
+  }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,10 +57,7 @@ const LoginPage = () => {
 
   const handleGoogleSuccess = async (credentialResponse) => {
     console.log(credentialResponse);
-    // Here you would send credentialResponse.credential (the ID token) to your backend
-    // for verification and authentication.
     toast.info('Google login successful! (Backend integration pending)');
-    // Example: await loginWithGoogle(credentialResponse.credential);
   };
 
   const handleGoogleError = () => {
@@ -56,7 +70,6 @@ const LoginPage = () => {
         className="relative flex items-center justify-center min-h-screen bg-cover bg-center font-inter"
         style={{ backgroundImage: `url(${foodBg})` }}
       >
-        {/* Warm Overlay for better contrast */}
         <div className="absolute inset-0 bg-gradient-to-br from-red-600/40 to-yellow-500/20 backdrop-blur-[2px]"></div>
 
         <div className="relative z-10 w-full max-w-lg px-4">
@@ -64,13 +77,12 @@ const LoginPage = () => {
             <div className="bg-[#DA291C] h-2 w-full"></div>
 
             <div className="p-8 md:p-12">
-              {/* Logo Section */}
               <div className="flex flex-col items-center mb-10">
                 <div className="w-32 h-32 md:w-40 md:h-40 p-1 bg-white rounded-full shadow-lg flex items-center justify-center -mt-16 md:-mt-20 border-4 border-[#FFC72C]">
-                  <img src={logoNew} alt="Restaurant Brno Logo" className="w-full h-full object-contain rounded-full" />
+                  <img src={logoNew} alt="Logo" className="w-full h-full object-contain rounded-full" />
                 </div>
                 <h1 className="mt-6 text-3xl font-black text-[#DA291C] uppercase tracking-tighter">Restaurant Brno</h1>
-                <p className="text-gray-500 font-medium tracking-wide">Digital Management Portal</p>
+                <p className="text-gray-500 font-medium tracking-wide">{t('dashboard.welcome')}</p>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -82,7 +94,7 @@ const LoginPage = () => {
                     placeholder="e.g. admin"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
-                    className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-[#FFC72C] focus:bg-white focus:ring-4 focus:ring-[#FFC72C]/10 outline-none transition-all duration-200"
+                    className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-[#FFC72C] focus:bg-white focus:ring-4 focus:ring-[#FFC72C]/10 outline-none transition-all duration-200 font-bold"
                   />
                 </div>
 
@@ -94,7 +106,7 @@ const LoginPage = () => {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-[#FFC72C] focus:bg-white focus:ring-4 focus:ring-[#FFC72C]/10 outline-none transition-all duration-200"
+                    className="w-full px-5 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-[#FFC72C] focus:bg-white focus:ring-4 focus:ring-[#FFC72C]/10 outline-none transition-all duration-200 font-bold"
                   />
                 </div>
 

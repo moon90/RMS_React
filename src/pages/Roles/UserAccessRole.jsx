@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { fetchUsers, fetchRoles, assignRolesToUser, unassignRolesFromUser } from '../../services/userRoleManagementService';
 import ProfessionalPagination from '../../components/ProfessionalPagination';
 import UserRoleModal from '../../components/UserRoleModal';
+import { FaUserTag, FaSearch, FaUserCircle, FaEnvelope, FaShieldAlt, FaEdit, FaFingerprint } from 'react-icons/fa';
 
 const UserAccessRole = () => {
     const [users, setUsers] = useState([]);
@@ -26,25 +27,21 @@ const UserAccessRole = () => {
         setError(null);
         try {
             const usersResponse = await fetchUsers(currentPage, itemsPerPage, searchTerm, sortField, sortDirection);
-            console.log('Fetched users:', usersResponse); // Debug log
             setUsers(usersResponse.data.data.items || []);
             setTotalUsers(usersResponse.data.data.totalRecords || 0);
         } catch (err) {
-            setError('Failed to load user data. Please check your network and permissions.');
-            console.error('Error fetching users:', err);
+            setError('Failed to load user data.');
             toast.error('Failed to load user data.');
         } finally {
             setLoading(false);
         }
     }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection]);
 
-    const fetchAllRoles = useCallback(async () => {
+    const fetchAllRolesData = useCallback(async () => {
         try {
-            const rolesResponse = await fetchRoles(1, 1000); // Fetch all roles for the modal
-            console.log('Fetched roles:', rolesResponse); // Debug log
+            const rolesResponse = await fetchRoles(1, 1000);
             setAllRoles(rolesResponse.data.data.items || []);
         } catch (err) {
-            console.error('Error fetching all roles:', err);
             toast.error('Failed to load available roles.');
         }
     }, []);
@@ -54,13 +51,13 @@ const UserAccessRole = () => {
     }, [fetchUserData]);
 
     useEffect(() => {
-        fetchAllRoles();
-    }, [fetchAllRoles]);
+        fetchAllRolesData();
+    }, [fetchAllRolesData]);
 
     const debouncedSearch = useCallback(
         debounce((value) => {
             setSearchTerm(value);
-            setCurrentPage(1); // Reset to first page on new search
+            setCurrentPage(1);
         }, 300),
         []
     );
@@ -76,15 +73,6 @@ const UserAccessRole = () => {
             setSortField(field);
             setSortDirection('asc');
         }
-        setCurrentPage(1); // Reset to first page on new sort
-    };
-
-    const handlePageChange = (newPage) => {
-        setCurrentPage(newPage);
-    };
-
-    const handleRowsPerPageChange = (newRowsPerPage) => {
-        setItemsPerPage(newRowsPerPage);
         setCurrentPage(1);
     };
 
@@ -100,123 +88,139 @@ const UserAccessRole = () => {
 
     const handleRolesUpdated = async (updatedUser, assignedRoleIds, unassignedRoleIds) => {
         try {
-            // Call API to assign roles
             if (assignedRoleIds.length > 0) {
                 await assignRolesToUser(updatedUser.userID, assignedRoleIds);
             }
-            // Call API to unassign roles
             if (unassignedRoleIds.length > 0) {
                 await unassignRolesFromUser(updatedUser.userID, unassignedRoleIds);
             }
-            toast.success('User roles updated successfully!');
-            fetchUserData(); // Refresh user list after update
+            toast.success('Access privileges synchronized!');
+            fetchUserData();
         } catch (err) {
-            toast.error('Failed to update user roles.');
-            console.error('Error updating roles:', err);
+            toast.error('Failed to update access roles.');
         } finally {
             handleCloseModal();
         }
     };
 
-    const totalPages = Math.ceil(totalUsers / itemsPerPage);
-
     return (
-        <div className="p-6 bg-white rounded-lg shadow-md">
-            <h1 className="text-2xl font-semibold mb-6">User Access Roles</h1>
-
-            {/* Search and Pagination Controls */}
-            <div className="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="relative flex-1 w-full md:w-auto">
-                    <input
-                        type="text"
-                        placeholder="Search users..."
-                        className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        onChange={handleSearchChange}
-                        disabled={loading}
-                    />
-                    <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
+        <div className="container mx-auto p-6 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+                <div>
+                    <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+                        <FaUserTag className="text-indigo-600" />
+                        User Access Roles
+                    </h1>
+                    <p className="text-gray-500 mt-1 font-medium">Map system roles and security profiles to staff members</p>
                 </div>
             </div>
 
-            {/* User Table */}
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('Id')}>
-                                <div className="flex items-center">User ID {sortField === 'Id' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
-                            </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('UserName')}>
-                                <div className="flex items-center">Username {sortField === 'UserName' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
-                            </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('FullName')}>
-                                <div className="flex items-center">Full Name {sortField === 'FullName' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
-                            </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900 cursor-pointer" onClick={() => handleSort('Email')}>
-                                <div className="flex items-center">Email {sortField === 'Email' && (sortDirection === 'asc' ? '▲' : '▼')}</div>
-                            </th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Roles</th>
-                            <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {loading ? (
-                            <tr>
-                                <td colSpan="7" className="text-center py-4">Loading users...</td>
-                            </tr>
-                        ) : error ? (
-                            <tr>
-                                <td colSpan="7" className="text-center py-4 text-red-500">{error}</td>
-                            </tr>
-                        ) : users.length === 0 ? (
-                            <tr>
-                                <td colSpan="7" className="text-center py-4">No users found.</td>
-                            </tr>
-                        ) : (
-                            users.map((user, index) => (
-                                <tr key={user.userID} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-4 py-4 text-sm text-gray-700">{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                                    <td className="px-4 py-4 text-sm text-gray-700">{user.userID}</td>
-                                    <td className="px-4 py-4 text-sm text-gray-700">{user.userName}</td>
-                                    <td className="px-4 py-4 text-sm text-gray-700">{user.fullName}</td>
-                                    <td className="px-4 py-4 text-sm text-gray-700">{user.email}</td>
-                                    <td className="px-4 py-4 text-sm text-gray-700">{user.roles.join(', ')}</td>
-                                    <td className="px-4 py-4 text-sm text-gray-700">
-                                        <button
-                                            onClick={() => handleEditRoles(user)}
-                                            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-                                        >
-                                            Edit Roles
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+            <div className="mb-6 flex flex-col md:flex-row gap-4 items-center">
+                <div className="relative group flex-1 w-full">
+                    <input
+                        type="text"
+                        placeholder="Search by username, full name or email..."
+                        className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-gray-100 rounded-2xl focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm group-hover:shadow-md"
+                        onChange={handleSearchChange}
+                        disabled={loading}
+                    />
+                    <FaSearch className="absolute top-4 left-4 text-gray-400 group-hover:text-indigo-500 transition-colors" />
+                </div>
             </div>
 
-            {/* Pagination Controls */}
-            {!loading && (
-              <ProfessionalPagination
-                count={totalUsers}
-                page={currentPage}
-                rowsPerPage={itemsPerPage}
-                onPageChange={handlePageChange}
-                onRowsPerPageChange={handleRowsPerPageChange}
-              />
-            )}
+            <div className="bg-white rounded-[2rem] shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50/50 border-b border-gray-100">
+                                <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest">Identiy</th>
+                                <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest cursor-pointer" onClick={() => handleSort('FullName')}>Personal Details</th>
+                                <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest">Contact</th>
+                                <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest">Active Roles</th>
+                                <th className="px-6 py-5 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {loading ? (
+                                <tr><td colSpan="5" className="py-20 text-center"><div className="w-10 h-10 border-4 border-gray-100 border-t-indigo-600 rounded-full animate-spin mx-auto"></div></td></tr>
+                            ) : users.length > 0 ? (
+                                users.map((user) => (
+                                    <tr key={user.userID} className="hover:bg-gray-50/50 transition-all group">
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-2 text-gray-400">
+                                                <FaFingerprint className="text-xs" />
+                                                <span className="font-mono text-[10px] font-bold">UID-{user.userID}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner">
+                                                    <FaUserCircle size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-gray-800 leading-none mb-1">{user.fullName}</p>
+                                                    <p className="text-xs text-gray-400 font-medium italic">@{user.userName}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-2 text-gray-500 text-sm">
+                                                <FaEnvelope className="text-gray-300" />
+                                                <span>{user.email}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex flex-wrap gap-1">
+                                                {user.roles && user.roles.length > 0 ? (
+                                                    user.roles.map((role, rIdx) => (
+                                                        <span key={rIdx} className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider border border-indigo-100">
+                                                            {role}
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-gray-300 italic">No roles assigned</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-5 text-right">
+                                            <button 
+                                                onClick={() => handleEditRoles(user)}
+                                                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-indigo-600 font-bold text-xs hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all shadow-sm hover:shadow-indigo-200"
+                                            >
+                                                <FaShieldAlt /> Configure Access
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr><td colSpan="5" className="py-20 text-center text-gray-400 font-bold">No security profiles found matching your search.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div className="p-6 bg-gray-50/30 border-t border-gray-100">
+                    <ProfessionalPagination
+                        count={totalUsers}
+                        page={currentPage}
+                        rowsPerPage={itemsPerPage}
+                        onPageChange={(p) => setCurrentPage(p)}
+                        onRowsPerPageChange={(r) => { setItemsPerPage(r); setCurrentPage(1); }}
+                    />
+                </div>
+            </div>
 
             {isModalOpen && selectedUser && (
-                <UserRoleModal
-                    user={selectedUser}
-                    allRoles={allRoles}
-                    onClose={handleCloseModal}
-                    onRolesUpdated={handleRolesUpdated}
-                />
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl animate-scale-in">
+                        <UserRoleModal
+                            user={selectedUser}
+                            allRoles={allRoles}
+                            onClose={handleCloseModal}
+                            onRolesUpdated={handleRolesUpdated}
+                        />
+                    </div>
+                </div>
             )}
         </div>
     );

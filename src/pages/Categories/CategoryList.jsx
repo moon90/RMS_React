@@ -1,41 +1,46 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
 import { getAllCategories, deleteCategory, toggleCategoryStatus, exportCategories, importCategories } from '../../services/categoryService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
-import ProfessionalPagination from '../../components/ProfessionalPagination';
+import CategoryAdd from './CategoryAdd';
 import { toast } from 'react-toastify';
-import showCustomConfirmAlert from '../../components/CustomConfirmAlert';
+import ProfessionalPagination from '../../components/ProfessionalPagination';
+import { hasPermission } from '../../utils/permissionUtils';
+import CustomConfirmAlert from '../../components/CustomConfirmAlert';
+import { 
+  FaSearch, 
+  FaPlus, 
+  FaEdit, 
+  FaTrashAlt, 
+  FaTags,
+  FaFilter,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaLayerGroup,
+  FaFileExport,
+  FaFileImport
+} from 'react-icons/fa';
 
-const CategoryList = () => {
+export default function CategoryList() {
   const [categories, setCategories] = useState([]);
   const [totalCategories, setTotalCategories] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(50); 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('CategoryName');
   const [sortDirection, setSortDirection] = useState('asc');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [filters, setFilters] = useState({
+    status: ''
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [inputValue, setInputValue] = useState('');
-  const [importFile, setImportFile] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importErrors, setImportErrors] = useState([]);
 
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const canCreate = hasPermission('CATEGORY_CREATE');
+  const canUpdate = hasPermission('CATEGORY_UPDATE');
+  const canDelete = hasPermission('CATEGORY_DELETE');
+  const canImport = hasPermission('CATEGORY_IMPORT');
+  const canExport = hasPermission('CATEGORY_EXPORT');
 
-  const canView = user?.permissions?.includes('CATEGORY_VIEW');
-  const canCreate = user?.permissions?.includes('CATEGORY_CREATE');
-  const canEdit = user?.permissions?.includes('CATEGORY_UPDATE');
-  const canDelete = user?.permissions?.includes('CATEGORY_DELETE');
-  // const canExport = true; // Temporarily set to true for debugging
-  // const canImport = true; // Temporarily set to true for debugging
-  const canExport = user?.permissions?.includes('CATEGORY_EXPORT');
- const canImport = user?.permissions?.includes('CATEGORY_IMPORT');
-
-  console.log('statusFilter before fetchCategories:', statusFilter);
   const fetchCategories = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -45,44 +50,45 @@ const CategoryList = () => {
         searchQuery: searchTerm,
         sortColumn: sortField,
         sortDirection: sortDirection,
-        status: statusFilter === '' ? null : statusFilter === 'true',
+        status: filters.status === 'active' ? true : filters.status === 'inactive' ? false : null,
       };
       const response = await getAllCategories(params);
-      if (response.data.isSuccess) {
-        setCategories(response.data.data.items);
-        setTotalCategories(response.data.data.totalRecords || 0);
+      if (response.data && response.data.isSuccess) {
+        const rawData = response.data.data || {};
+        setCategories(rawData.items || []);
+        const total = rawData.totalRecords || rawData.TotalRecords || rawData.totalCount || rawData.TotalCount || (rawData.items?.length || 0);
+        setTotalCategories(total);
       } else {
-        toast.error(response.data.message || 'Failed to fetch categories');
+        toast.error('Failed to update category registry.');
         setCategories([]);
         setTotalCategories(0);
       }
     } catch (error) {
-      toast.error('An error occurred while fetching categories.');
-      console.error(error);
+      toast.error('Critical failure: Category server unreachable.');
       setCategories([]);
       setTotalCategories(0);
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection, statusFilter]);
+  }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection, filters.status]);
 
   useEffect(() => {
-    if (!canView) {
-      navigate('/access-denied');
-      return;
-    }
     fetchCategories();
-  }, [canView, navigate, fetchCategories]);
+  }, [fetchCategories]);
 
   const debouncedSearch = useCallback(debounce((value) => {
     setSearchTerm(value);
     setCurrentPage(1);
-  }, 2000), []);
+  }, 300), []);
 
   const handleSearchChange = (event) => {
-    const { value } = event.target;
-    setInputValue(value);
-    debouncedSearch(value);
+    debouncedSearch(event.target.value);
+  };
+
+  const handleFilter = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
   };
 
   const handleSort = (field) => {
@@ -95,369 +101,287 @@ const CategoryList = () => {
     }
   };
 
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleRowsPerPageChange = (newRowsPerPage) => {
-    setItemsPerPage(newRowsPerPage);
-    setCurrentPage(1);
-  };
-
-  const handleToggleStatus = async (id, currentStatus) => {
-    if (!canEdit) {
-      toast.error('You do not have permission to change the status of a category.');
-      return;
-    }
-
-    const newStatus = !currentStatus;
-    const actionText = newStatus ? 'activate' : 'deactivate';
-
-    const handleConfirm = async () => {
-      try {
-        const response = await toggleCategoryStatus(id, newStatus);
-        if (response.data.isSuccess) {
-          toast.success(`Category ${actionText}d successfully`);
-          fetchCategories();
-        } else {
-          toast.error(response.data.message || `Failed to ${actionText} category`);
-        }
-      } catch (error) {
-        if (error.response && error.response.data && error.response.data.message) {
-          toast.error(error.response.data.message);
-        } else {
-          toast.error(`An error occurred while trying to ${actionText} the category.`);
-        }
-        console.error(error);
-      }
-    };
-
-    showCustomConfirmAlert({
-      title: `Confirm to ${actionText}`,
-      message: `Are you sure you want to ${actionText} this category?`,
-      onConfirm: handleConfirm,
-    });
-  };
-
-
-
-// ... (rest of the component up to handleDelete)
-
   const handleExport = async () => {
-    if (!canExport) {
-      toast.error('You do not have permission to export categories.');
-      return;
-    }
-    setIsLoading(true);
     try {
+      toast.info('Exporting categories...');
       await exportCategories();
-      toast.success('Categories exported successfully!');
+      toast.success('Categories exported successfully.');
     } catch (error) {
       toast.error('Failed to export categories.');
-      console.error('Export error:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const handleFileChange = (event) => {
-    setImportFile(event.target.files[0]);
-    setImportErrors([]); // Clear previous errors
-  };
-
-  const handleImport = async () => {
-    if (!canImport) {
-      toast.error('You do not have permission to import categories.');
-      return;
-    }
-    if (!importFile) {
-      toast.error('Please select a file to import.');
-      return;
-    }
-
-    setIsImporting(true);
-    setImportErrors([]);
+  const handleImport = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
     try {
-      const response = await importCategories(importFile);
+      toast.info('Importing categories...');
+      const response = await importCategories(file);
       if (response.data.isSuccess) {
-        toast.success(response.data.message || 'Categories imported successfully!');
-        setImportFile(null);
-        fetchCategories(); // Refresh the list
+        toast.success(response.data.message || 'Import successful.');
+        fetchCategories();
       } else {
-        toast.error(response.data.message || 'Failed to import categories.');
-        if (response.data.validationErrors && response.data.validationErrors.length > 0) {
-          setImportErrors(response.data.validationErrors);
-        }
+        toast.error(response.data.message || 'Import failed.');
       }
     } catch (error) {
-      let errorMessage = 'An error occurred during import.';
-      if (error.response && error.response.data) {
-        if (typeof error.response.data === 'string') {
-          errorMessage = error.response.data;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
-        }
-        if (error.response.data.validationErrors) {
-          setImportErrors(error.response.data.validationErrors);
-        }
-      }
-      toast.error(errorMessage);
-      console.error('Import error:', error);
+      toast.error('Critical failure during import process.');
     } finally {
-      setIsImporting(false);
+      e.target.value = null; // Clear input
     }
   };
 
-// ... (rest of the component up to handleDelete)
-
+  const handleToggleStatus = async (category) => {
+    if (!canUpdate) return;
+    try {
+      const response = await toggleCategoryStatus(category.categoryID, !category.status);
+      if (response.data.isSuccess) {
+        toast.success(`Category '${category.categoryName}' status synchronized.`);
+        fetchCategories();
+      }
+    } catch (error) {
+      toast.error('Status Update failed.');
+    }
+  };
 
   const handleDelete = (id) => {
-    if (!canDelete) {
-      toast.error('You do not have permission to delete categories.');
-      return;
-    }
-
-    const handleConfirm = async () => {
-      try {
-        const response = await deleteCategory(id);
-        if (response.data.isSuccess) {
-          toast.success('Category deleted successfully');
-          fetchCategories(); // Refresh the list
-        } else {
-          toast.error(response.data.message || 'Failed to delete category');
-        }
-      } catch (error) {
-        const errorMessage = error.response?.data?.message || 'An error occurred while deleting the category.';
-        toast.error(errorMessage);
-        console.error(error);
-      }
-    };
-
-    showCustomConfirmAlert({
-      title: 'Confirm Deletion',
-      message: 'Are you sure you want to delete this category?',
-      onConfirm: handleConfirm,
-    });
+    if (!canDelete) return;
+    
+    toast(({ closeToast }) => (
+      <div className="p-1 text-left">
+        <p className="text-sm font-bold text-gray-800 mb-3 uppercase tracking-tighter">Purge this category permanently?</p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const response = await deleteCategory(id);
+                if (response.data.isSuccess) {
+                  toast.success('Category purged from registry.');
+                  fetchCategories();
+                } else {
+                  toast.error(response.data.message || 'Deletion protocol rejected.');
+                }
+              } catch (err) {
+                toast.error('Cannot delete: Active product dependencies detected.');
+              }
+              closeToast();
+            }}
+            className="bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all shadow-lg shadow-red-500/20 active:scale-95"
+          >
+            Confirm
+          </button>
+          <button
+            onClick={closeToast}
+            className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), { autoClose: false, closeOnClick: false, position: "top-right" });
   };
 
-// ... (rest of the component)
-
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-center">
-        <h2 className="text-2xl font-semibold">Category List</h2>
-        <div className="flex flex-col md:flex-row gap-4 mt-4 md:mt-0">
+    <div className="container mx-auto p-6 animate-fade-in max-w-7xl text-left">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6 text-left">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3 uppercase tracking-tighter text-left">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200">
+              <FaTags className="text-white" />
+            </div>
+            Category Architect
+          </h1>
+          <p className="text-gray-500 mt-1 font-medium italic text-left">Organize product hierarchy and classification nodes</p>
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-3">
           {canExport && (
             <button
               onClick={handleExport}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center justify-center"
-              disabled={isLoading}
+              className="flex items-center gap-2 px-6 py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-black shadow-sm hover:bg-slate-50 transition-all active:scale-95 uppercase text-[10px] tracking-widest"
+              title="Export to CSV"
             >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H5a2 2 0 01-2-2V6a2 2 0 012-2h7l2 2h4a2 2 0 012 2v8a2 2 0 01-2 2z"></path>
-              </svg>
-              Export
+              <FaFileExport /> Export
             </button>
           )}
-          {canCreate && (
-            <button
-              onClick={() => navigate('/categories/add')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center justify-center"
-            >
-              <FaPlus className="mr-2" />
-              Add Category
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Import Section */}
-      {canImport && (
-        <div className="mb-6 p-4 border border-gray-300 rounded-md shadow-sm">
-          <h3 className="text-lg font-semibold mb-2">Import Categories (CSV)</h3>
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <input
-              type="file"
-              accept=".csv"
-              onChange={handleFileChange}
-              className="block w-full text-sm text-gray-500
-              file:mr-4 file:py-2 file:px-4
-              file:rounded-md file:border-0
-              file:text-sm file:font-semibold
-              file:bg-orange-50 file:text-blue-600
-              hover:file:bg-orange-100"
-              disabled={isImporting}
-            />
-            <button
-              onClick={handleImport}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center justify-center w-full sm:w-auto"
-              disabled={isImporting || !importFile}
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-              </svg>
-              {isImporting ? 'Importing...' : 'Import'}
-            </button>
-          </div>
-          {importErrors.length > 0 && (
-            <div className="mt-4 text-red-600 text-sm">
-              <p className="font-semibold">Import Errors:</p>
-              <ul className="list-disc pl-5">
-                {importErrors.map((error, index) => (
-                  <li key={index}>
-                    Row {error.rowNumber || 'N/A'}: {error.propertyName} - {error.errorMessage}
-                  </li>
-                ))}
-              </ul>
+          
+          {canImport && (
+            <div className="relative">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleImport}
+                className="hidden"
+                id="import-csv"
+              />
+              <label
+                htmlFor="import-csv"
+                className="flex items-center gap-2 px-6 py-4 bg-white border-2 border-slate-100 text-slate-600 rounded-2xl font-black shadow-sm hover:bg-slate-50 transition-all active:scale-95 uppercase text-[10px] tracking-widest cursor-pointer"
+                title="Import from CSV"
+              >
+                <FaFileImport /> Import
+              </label>
             </div>
           )}
-        </div>
-      )}
 
-      {/* Search */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <input
-            type="text"
-            placeholder="Search categories..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={inputValue}
-            onChange={handleSearchChange}
-            disabled={isLoading}
-          />
-          <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
-        </div>
-        <div className="relative">
-          <select
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1);
-            }}
-            disabled={isLoading}
-          >
-            <option value="">All Statuses</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
+          {canCreate && (
+            <button
+              onClick={() => { setSelectedCategory(null); setIsEditModalOpen(true); }}
+              className="flex items-center gap-2 px-8 py-4 bg-slate-900 text-white rounded-2xl font-black shadow-lg shadow-slate-500/20 hover:bg-black hover:-translate-y-1 transition-all active:scale-95 uppercase text-xs tracking-widest"
+            >
+              <FaPlus /> New Category
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Responsive Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">#</th>
-              <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('CategoryName')}
-              >
-                <div className="flex items-center">
-                  Category Name
-                  {sortField === 'CategoryName' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {isLoading ? (
-              <tr>
-                <td colSpan="4" className="text-center py-4">Loading...</td>
+      {/* FILTER & SEARCH BAR */}
+      <div className="mb-8 flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative group flex-1 w-full text-left">
+          <input
+            type="text"
+            placeholder="Search catalog by category name..."
+            className="w-full pl-12 pr-4 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all shadow-sm group-hover:shadow-md font-bold text-slate-700"
+            onChange={handleSearchChange}
+          />
+          <FaSearch className="absolute top-5 left-5 text-slate-300 group-hover:text-blue-500 transition-colors" />
+        </div>
+        
+        <div className="flex gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-none">
+            <FaFilter className="absolute left-4 top-5 text-gray-400 pointer-events-none" />
+            <select 
+              name="status" 
+              className="w-full pl-10 pr-10 py-4 bg-white border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none font-black text-[10px] uppercase tracking-widest text-slate-600 cursor-pointer shadow-sm hover:shadow-md transition-all appearance-none min-w-[160px]"
+              onChange={handleFilter}
+              value={filters.status}
+            >
+              <option value="">System Status</option>
+              <option value="active" className="text-gray-900 bg-white">Active Only</option>
+              <option value="inactive" className="text-gray-900 bg-white">Archived</option>
+            </select>
+          </div>
+          <div className="hidden md:flex items-center px-5 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl font-black text-[10px] uppercase tracking-widest text-slate-400">
+            {totalCategories} Records
+          </div>
+        </div>
+      </div>
+
+      {/* TABLE SECTION */}
+      <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-gray-200/50 border border-gray-50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer" onClick={() => handleSort('CategoryName')}>Classification Detail</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Operational</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
-            ) : categories.length > 0 ? (
-              categories.map((category, idx) => (
-                <tr key={category.categoryID} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 text-sm text-gray-800">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-4 text-sm text-gray-800">{category.categoryName}</td>
-                  <td className="px-4 py-4 text-sm text-gray-800">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        category.status
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {category.status ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-800">
-                    <div className="flex space-x-2">
-                      {canEdit && (
-                        <button 
-                          onClick={() => navigate(`/categories/edit/${category.categoryID}`)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Edit category"
-                        >
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5h-2m-2 0V7a2 2 0 00-2-2H11a2 2 0 00-2 2v5a2 2 0 002 2h5M9 12h1m-1 4h1" />
-                          </svg>
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button 
-                          onClick={() => handleToggleStatus(category.categoryID, category.status)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Toggle active status"
-                        >
-                          {category.status ? ( // Change icon based on active status
-                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button 
-                          onClick={() => handleDelete(category.categoryID)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-red-100 transition-colors"
-                          aria-label="Delete category"
-                        >
-                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
+            </thead>
+            <tbody className="divide-y divide-gray-50 font-bold">
+              {isLoading ? (
+                <tr><td colSpan="3" className="py-20 text-center"><div className="w-12 h-12 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div><p className="mt-4 text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">Syncing Hub...</p></td></tr>
+              ) : categories.length > 0 ? (
+                categories.map((category) => (
+                  <tr key={category.categoryID} className="hover:bg-gray-50/50 transition-all group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-inner border-2 border-white ring-4 ring-gray-50 group-hover:ring-blue-50 transition-all ${category.status ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                            <FaLayerGroup />
+                          </div>
+                          <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white shadow-sm ${category.status ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-black text-slate-800 text-sm tracking-tight uppercase">{category.categoryName}</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Ref: #{category.categoryID}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <button 
+                        onClick={() => handleToggleStatus(category)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm ${
+                          category.status ? 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100' : 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100'
+                        }`}
+                      >
+                        {category.status ? <><FaCheckCircle /> Online</> : <><FaTimesCircle /> Offline</>}
+                      </button>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                        {canUpdate && (
+                          <button onClick={() => { setSelectedCategory(category); setIsEditModalOpen(true); }} className="p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm" title="Modify"><FaEdit /></button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => handleDelete(category.categoryID)} className="p-3 bg-white border border-gray-100 rounded-xl text-red-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm" title="Purge"><FaTrashAlt /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3" className="px-8 py-32 text-center">
+                    <div className="flex flex-col items-center gap-6 text-slate-200">
+                      <FaTags size={80} />
+                      <p className="text-2xl font-black uppercase tracking-[0.2em] text-slate-300">Registry Empty</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic max-w-xs leading-relaxed text-center">No classifications were identified in the primary category registry.</p>
                     </div>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="4" className="text-center py-4">No categories found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Pagination */}
-      {!isLoading && (
+      {/* PAGINATION SECTION */}
+      <div className="mt-8">
         <ProfessionalPagination
           count={totalCategories}
           page={currentPage}
           rowsPerPage={itemsPerPage}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={setItemsPerPage}
         />
+      </div>
+
+      {/* MODAL SYSTEM */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-fade-in text-left">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in border border-white/20">
+            <div className="p-10 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div className="flex items-center gap-5">
+                <div className="p-3 bg-blue-600 rounded-2xl shadow-xl shadow-blue-200">
+                  <FaTags className="text-white text-xl" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-gray-900 tracking-tighter uppercase">
+                    {selectedCategory ? 'Update Class' : 'Initialize Class'}
+                  </h3>
+                  <p className="text-[10px] font-black text-gray-400 mt-1 uppercase tracking-widest">
+                    {selectedCategory ? `Reference: #${selectedCategory.categoryID}` : 'Global Category Registry'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setIsEditModalOpen(false)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-xl text-gray-300 hover:text-red-500 transition-all hover:rotate-90"><FaTimesCircle size={28}/></button>
+            </div>
+            <div className="p-10 overflow-y-auto flex-1 custom-scrollbar bg-white">
+              <CategoryAdd 
+                isEdit={!!selectedCategory} 
+                categoryData={selectedCategory} 
+                onClose={() => setIsEditModalOpen(false)} 
+                onSave={() => { fetchCategories(); setIsEditModalOpen(false); }}
+                showTitle={false}
+              />
+            </div>
+          </div>
+        </div>
       )}
+
     </div>
   );
-};
-
-export default CategoryList;
+}

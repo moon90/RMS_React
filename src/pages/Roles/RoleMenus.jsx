@@ -1,447 +1,337 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import axios from '../../utils/axios';
-import { FaTrash } from 'react-icons/fa';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { assignMenusToRoleBulk, unassignMenusFromRoleBulk, assignMenuToRole } from '../../services/menuService';
-
-const FormCard = ({ title, children }) => (
-  <div className="bg-white shadow-md rounded-lg p-6 mb-6">
-    <h2 className="text-xl font-bold mb-4 text-gray-700">{title}</h2>
-    {children}
-  </div>
-);
-
-const AssignedMenusTable = ({ roleMenus, onDelete, onSelect, selectedMenus, onPermissionChange }) => (
-  <FormCard title="Assigned Menus">
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-              <input
-                type="checkbox"
-                onChange={(e) => {
-                  const allMenuIds = roleMenus.map(rm => rm.menuID);
-                  if (e.target.checked) {
-                    onSelect(allMenuIds, 'add');
-                  } else {
-                    onSelect(allMenuIds, 'remove');
-                  }
-                }}
-                checked={roleMenus.length > 0 && roleMenus.every(rm => selectedMenus.includes(rm.menuID))}
-              />
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Menu</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Can View</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Can Add</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Can Edit</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Can Delete</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {roleMenus.map(rm => (
-            <tr key={rm.roleMenuID}>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <input
-                  type="checkbox"
-                  checked={selectedMenus.includes(rm.menuID)}
-                  onChange={() => onSelect([rm.menuID], selectedMenus.includes(rm.menuID) ? 'remove' : 'add')}
-                />
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">{rm.menuName || 'N/A'}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
-                <input
-                  type="checkbox"
-                  checked={rm.canView}
-                  onChange={(e) => {
-                    onPermissionChange(rm.roleMenuID, rm.roleID, rm.menuID, 'canView', e.target.checked);
-                  }}
-                />
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
-                <input
-                  type="checkbox"
-                  checked={rm.canAdd}
-                  onChange={(e) => onPermissionChange(rm.roleMenuID, rm.roleID, rm.menuID, 'canAdd', e.target.checked)}
-                />
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
-                <input
-                  type="checkbox"
-                  checked={rm.canEdit}
-                  onChange={(e) => onPermissionChange(rm.roleMenuID, rm.roleID, rm.menuID, 'canEdit', e.target.checked)}
-                />
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-center">
-                <input
-                  type="checkbox"
-                  checked={rm.canDelete}
-                  onChange={(e) => onPermissionChange(rm.roleMenuID, rm.roleID, rm.menuID, 'canDelete', e.target.checked)}
-                />
-              </td>
-              <td className="px-6 py-4">
-                {/* FIX: pass the correct ID property */}
-                <button onClick={() => onDelete(rm.roleMenuID)} className="text-red-600 hover:text-red-800 transition-colors duration-200">
-                  <FaTrash />
-                </button>
-              </td>
-            </tr>
-          ))}
-          {roleMenus.length === 0 && (
-            <tr>
-              <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
-                No menus assigned to this role yet.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  </FormCard>
-);
-
-const AvailableMenusTable = ({ menus, assignedMenuIds, onSelect, selectedMenus }) => {
-  const availableMenus = menus.filter(menu => !assignedMenuIds.includes(menu.menuID));
-
-  return (
-    <FormCard title="Available Menus">
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                <input
-                  type="checkbox"
-                  onChange={(e) => {
-                    const allMenuIds = availableMenus.map(menu => menu.menuID);
-                    if (e.target.checked) {
-                      onSelect(allMenuIds, 'add');
-                    } else {
-                      onSelect(allMenuIds, 'remove');
-                    }
-                  }}
-                  checked={availableMenus.length > 0 && availableMenus.every(menu => selectedMenus.includes(menu.menuID))}
-                />
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Menu Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Controller</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {availableMenus.map(menu => (
-              <tr key={menu.menuID}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={selectedMenus.includes(menu.menuID)}
-                    onChange={() => onSelect([menu.menuID], selectedMenus.includes(menu.menuID) ? 'remove' : 'add')}
-                  />
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">{menu.menuName}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{menu.controllerName}</td>
-                <td className="px-6 py-4 whitespace-nowrap">{menu.actionName}</td>
-              </tr>
-            ))}
-            {availableMenus.length === 0 && (
-              <tr>
-                <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
-                  No available menus.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </FormCard>
-  );
-};
+import { toast } from 'react-toastify';
+import menuService from '../../services/menuService';
+import { fetchRoles } from '../../services/userRoleManagementService';
+import { useAuth } from '../../context/AuthContext';
+import {
+  FaCompass,
+  FaShieldAlt,
+  FaPlus,
+  FaChevronRight,
+  FaTrash,
+  FaLayerGroup,
+  FaCheckCircle,
+  FaCircle,
+  FaArrowRight,
+  FaUniversalAccess
+} from 'react-icons/fa';
 
 const RoleMenus = () => {
+  const { refreshPermissions } = useAuth();
   const [roles, setRoles] = useState([]);
   const [menus, setMenus] = useState([]);
   const [roleMenus, setRoleMenus] = useState([]);
   const [selectedRole, setSelectedRole] = useState('');
   const [loading, setLoading] = useState(false);
-  const [selectedAssignedMenus, setSelectedAssignedMenus] = useState([]);
   const [selectedAvailableMenus, setSelectedAvailableMenus] = useState([]);
 
-  const fetchRolesAndMenus = useCallback(async () => {
+  const fetchBaseData = useCallback(async () => {
     try {
       const [rolesRes, menusRes] = await Promise.all([
-        axios.get('/Roles?pageSize=1000'),
-        axios.get('/Menus?pageSize=1000')
+        fetchRoles(1, 1000),
+        menuService.getAllMenus({ pageNumber: 1, pageSize: 1000 })
       ]);
-      const normalizeToArray = (res) => {
-        const d = res?.data ?? res;
-        if (Array.isArray(d)) return d;
-        if (Array.isArray(d?.data?.items)) return d.data.items;
-        if (Array.isArray(d?.items)) return d.items;
-        if (Array.isArray(d?.data)) return d.data;
-        if (d && !Array.isArray(d)) return [d];
-        return [];
-      };
 
-      setRoles(normalizeToArray(rolesRes));
-      setMenus(normalizeToArray(menusRes));
+      // Roles now use ResponseDto<PagedResult> envelope
+      const rawRoles = rolesRes.data?.data?.items || rolesRes.data?.data || rolesRes.data || [];
+      setRoles(Array.isArray(rawRoles) ? rawRoles : []);
+
+      // Menus now use ResponseDto<PagedResult> envelope: { isSuccess, data: { items: [...], totalRecords } }
+      const menusResponseData = menusRes.data?.data;
+      const rawMenus = menusResponseData?.items || menusResponseData?.Items ||
+        (Array.isArray(menusResponseData) ? menusResponseData : []);
+
+      const normalizedMenus = rawMenus.map(m => ({
+        menuID: Number(m.menuID ?? m.MenuID ?? m.id ?? m.Id),
+        menuName: m.menuName ?? m.MenuName ?? 'Unnamed Node',
+        controllerName: m.controllerName ?? m.ControllerName,
+        actionName: m.actionName ?? m.ActionName
+      }));
+      
+      setMenus(normalizedMenus);
     } catch (err) {
-      toast.error('Failed to load roles and menus.');
-      console.error('Role/Menu fetch error:', err);
+      console.error('Core navigation fetch error:', err);
+      toast.error('Failed to initialize system navigation data.');
     }
   }, []);
 
   useEffect(() => {
-    fetchRolesAndMenus();
-  }, [fetchRolesAndMenus]);
+    fetchBaseData();
+  }, [fetchBaseData]);
 
-  const fetchRoleMenus = useCallback(async (roleId) => {
+  const fetchRoleMenusData = useCallback(async (roleId) => {
     if (!roleId) {
       setRoleMenus([]);
       return;
     }
+    setLoading(true);
     try {
-      const res = await axios.get(`/Menus/role/${roleId}`);
-      const rawMenus = res.data?.data || [];
-
-      // 🔑 Normalize keys so the rest of the code is consistent
-      const normalized = rawMenus.map(rm => ({
-        roleMenuID: rm.roleMenuID ?? rm.RoleMenuID,
-        roleID: rm.roleID ?? rm.RoleID,
-        menuID: rm.menuID ?? rm.MenuID,
-        menuName: rm.menuName ?? rm.MenuName,
-        canView: rm.canView ?? rm.CanView,
-        canAdd: rm.canAdd ?? rm.CanAdd,
-        canEdit: rm.canEdit ?? rm.CanEdit,
-        canDelete: rm.canDelete ?? rm.CanDelete,
+      const res = await menuService.getRoleMenus(roleId);
+      const rawData = res.data?.data || res.data || [];
+      const items = Array.isArray(rawData) ? rawData : (rawData.items || rawData.Items || []);
+      
+      const normalized = items.map(rm => ({
+        roleMenuID: Number(rm.roleMenuID ?? rm.RoleMenuID ?? rm.id ?? rm.Id),
+        roleID: Number(rm.roleID ?? rm.RoleID),
+        menuID: Number(rm.menuID ?? rm.MenuID),
+        menuName: rm.menuName ?? rm.MenuName ?? 'Unnamed Node',
+        canView: rm.canView ?? rm.CanView ?? false,
+        canAdd: rm.canAdd ?? rm.CanAdd ?? false,
+        canEdit: rm.canEdit ?? rm.CanEdit ?? false,
+        canDelete: rm.canDelete ?? rm.CanDelete ?? false,
       }));
-
       setRoleMenus(normalized);
-      setSelectedAssignedMenus([]); // Clear selections on role change
-      setSelectedAvailableMenus([]); // Clear selections on role change
     } catch (err) {
-      if (err.response?.status !== 404) {
-        toast.error('Failed to load assigned menus.');
-        console.error('Role menus fetch error:', err);
-      }
+      console.error('Critical failure during navigation matrix synchronization:', err);
       setRoleMenus([]);
-      setSelectedAssignedMenus([]);
-      setSelectedAvailableMenus([]);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchRoleMenus(selectedRole);
-  }, [selectedRole, fetchRoleMenus]);
+    fetchRoleMenusData(selectedRole);
+  }, [selectedRole, fetchRoleMenusData]);
 
-  const handleAssignedMenuSelect = (menuIds, action) => {
-    setSelectedAssignedMenus(prev => {
-      if (action === 'add') {
-        return [...new Set([...prev, ...menuIds])];
-      } else {
-        return prev.filter(id => !menuIds.includes(id));
-      }
-    });
+  const handleToggleAvailable = (menuId) => {
+    setSelectedAvailableMenus(prev =>
+      prev.includes(menuId) ? prev.filter(id => id !== menuId) : [...prev, menuId]
+    );
   };
 
-  const handleAvailableMenuSelect = (menuIds, action) => {
-    setSelectedAvailableMenus(prev => {
-      if (action === 'add') {
-        return [...new Set([...prev, ...menuIds])];
-      } else {
-        return prev.filter(id => !menuIds.includes(id));
-      }
-    });
+  const handleSelectAllAvailable = () => {
+    if (selectedAvailableMenus.length === availableMenus.length && availableMenus.length > 0) {
+      setSelectedAvailableMenus([]);
+    } else {
+      setSelectedAvailableMenus(availableMenus.map(m => m.menuID));
+    }
   };
 
-  const handleAssignSelectedMenus = useCallback(async () => {
-    if (!selectedRole || selectedAvailableMenus.length === 0) {
-      toast.warn('Please select a role and at least one available menu to assign.');
-      return;
-    }
+  const handleAssignMenus = async () => {
+    if (!selectedRole || selectedAvailableMenus.length === 0) return;
     setLoading(true);
     try {
-      const res = await assignMenusToRoleBulk(selectedRole, selectedAvailableMenus);
-      if (res.data.isSuccess) {
-        toast.success('Selected menus assigned successfully!');
-        fetchRoleMenus(selectedRole); // Re-fetch to get the latest list
-        setSelectedAvailableMenus([]); // Clear selections after assignment
-      } else {
-        toast.error(res.data.message || 'Bulk menu assignment failed.');
-      }
-    } catch (err) {
-      toast.error('An error occurred during bulk menu assignment.');
-      console.error('Bulk menu assignment error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedRole, selectedAvailableMenus, fetchRoleMenus]);
-
-  // ✅ FIXED: consistent use of `roleMenuID` + safer payload build from the updated row
-const handlePermissionChange = useCallback(
-  async (roleMenuID, roleID, menuID, permissionType, value) => {
-    setLoading(true);
-    try {
-      // 1) Compute the updated row from the CURRENT state (before set)
-      const currentRow = roleMenus.find(rm => rm.roleMenuID === roleMenuID);
-      if (!currentRow) {
-        toast.error('Error: Role menu not found for update.');
-        setLoading(false);
-        return;
-      }
-
-      const updatedRowLocal = { ...currentRow, [permissionType]: value };
-
-      // 2) Optimistically update state using the local updated row
-      setRoleMenus(prev =>
-        prev.map(rm => (rm.roleMenuID === roleMenuID ? updatedRowLocal : rm))
-      );
-
-      // 3) Send EXACTLY what you intend to save
+      // Standardize payload to PascalCase for backend DTO compatibility
       const payload = {
-        roleMenuID: updatedRowLocal.roleMenuID,
-        roleID,
-        menuID,
-        canView: !!updatedRowLocal.canView,
-        canAdd: !!updatedRowLocal.canAdd,
-        canEdit: !!updatedRowLocal.canEdit,
-        canDelete: !!updatedRowLocal.canDelete,
+        RoleId: Number(selectedRole),
+        MenuIds: selectedAvailableMenus.map(id => Number(id)),
+        CanView: true,
+        CanAdd: true,   // Set to true by default for better UX
+        CanEdit: true,  // Set to true by default for better UX
+        CanDelete: true // Set to true by default for better UX
       };
-
-      const res = await assignMenuToRole(roleID, menuID, payload);
-
+      const res = await menuService.assignMenusToRoleBulk(payload.RoleId, payload.MenuIds);
       if (res.data?.isSuccess) {
-        toast.success('Permission updated successfully!');
-      } else {
-        toast.error(res.data?.message || 'Permission update failed.');
-        // Revert on failure
-        setRoleMenus(prev =>
-          prev.map(rm =>
-            rm.roleMenuID === roleMenuID ? { ...rm, [permissionType]: !value } : rm
-          )
-        );
+        toast.success('Navigation privileges expanded with full CRUD access!');
+        fetchRoleMenusData(selectedRole);
+        setSelectedAvailableMenus([]);
+        await refreshPermissions();
       }
     } catch (err) {
-      toast.error('An error occurred while updating permission.');
-      console.error('Permission update error:', err);
-      // Revert on error
-      setRoleMenus(prev =>
-        prev.map(rm =>
-          rm.roleMenuID === roleMenuID ? { ...rm, [permissionType]: !value } : rm
-        )
-      );
+      toast.error('Failed to sync navigation data.');
     } finally {
       setLoading(false);
     }
-  },
-  [roleMenus]
-);
+  };
 
-  const handleUnassignSelectedMenus = useCallback(async () => {
-    if (!selectedRole || selectedAssignedMenus.length === 0) {
-      toast.warn('Please select a role and at least one assigned menu to unassign.');
-      return;
-    }
+  const handlePermissionChange = async (rm, type, val) => {
     setLoading(true);
     try {
-      const res = await unassignMenusFromRoleBulk(selectedRole, selectedAssignedMenus);
+      const payload = { ...rm, [type]: val };
+      const res = await menuService.assignMenuToRole(rm.roleID, rm.menuID, payload);
       if (res.data.isSuccess) {
-        toast.success('Selected menus unassigned successfully!');
-        fetchRoleMenus(selectedRole); // Re-fetch to get the latest list
-      } else {
-        toast.error(res.data.message || 'Bulk menu unassignment failed.');
+        setRoleMenus(prev => prev.map(item => item.roleMenuID === rm.roleMenuID ? payload : item));
+        toast.success('Access granularities updated.');
+        await refreshPermissions();
       }
     } catch (err) {
-      toast.error('An error occurred during bulk menu unassignment.');
-      console.error('Bulk menu unassignment error:', err);
+      toast.error('Failed to update permission state.');
     } finally {
       setLoading(false);
     }
-  }, [selectedRole, selectedAssignedMenus, fetchRoleMenus]);
+  };
 
-  // ✅ FIXED: use the correct key for finding + deletion
-  const handleDeleteRoleMenu = useCallback(async (roleMenuId) => {
-    const roleMenuToDelete = roleMenus.find(rm => rm.roleMenuID === roleMenuId);
-    if (!roleMenuToDelete) {
-      toast.error('Cannot find the assigned menu to delete.');
-      return;
-    }
-
+  const handleUnassign = async (roleMenuId) => {
+    const target = roleMenus.find(r => r.roleMenuID === roleMenuId);
+    if (!target) return;
     setLoading(true);
     try {
-      // Using bulk unassign endpoint for single unassignment
-      const response = await unassignMenusFromRoleBulk(roleMenuToDelete.roleID, [roleMenuToDelete.menuID]);
-      if (response.data.isSuccess) {
-        toast.success('Menu unassigned successfully!');
-        fetchRoleMenus(selectedRole); // Re-fetch to get the latest list
-      } else {
-        toast.error(response.data.message || 'Menu unassignment failed.');
-      }
+      await menuService.unassignMenusFromRoleBulk(target.roleID, [target.menuID]);
+      toast.success('Menu visibility revoked.');
+      fetchRoleMenusData(selectedRole);
+      await refreshPermissions();
     } catch (err) {
-      toast.error('An error occurred during menu unassignment.');
-      console.error('Menu removal error:', err);
+      toast.error('Failed to unassign navigation link.');
     } finally {
       setLoading(false);
     }
-  }, [roleMenus, selectedRole, fetchRoleMenus]);
+  };
 
   const assignedMenuIds = roleMenus.map(rm => rm.menuID);
+  const availableMenus = menus.filter(m => !assignedMenuIds.includes(m.menuID));
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen">
-      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-1">
-          <FormCard title="Assign New Menu">
-            <div className="space-y-4">
-              <div>
-                <label className="block mb-1 font-medium text-gray-600">Role</label>
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Select Role</option>
-                  {roles.map(role => (
-                    <option key={role.roleID} value={role.roleID}>{role.roleName}</option>
-                  ))}
-                </select>
-              </div>
-              <AvailableMenusTable
-                menus={menus}
-                assignedMenuIds={assignedMenuIds}
-                onSelect={handleAvailableMenuSelect}
-                selectedMenus={selectedAvailableMenus}
-              />
-              <button
-                onClick={handleAssignSelectedMenus}
-                disabled={loading || !selectedRole || selectedAvailableMenus.length === 0}
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors duration-300"
-              >
-                {loading ? 'Assigning...' : 'Assign Selected Menus'}
-              </button>
-            </div>
-          </FormCard>
+    <div className="container mx-auto p-6 animate-fade-in max-w-7xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <FaCompass className="text-indigo-600" />
+            Menu Assignments
+          </h1>
+          <p className="text-gray-500 mt-1 font-medium italic">Map system navigation nodes and CRUD permissions to roles</p>
         </div>
-        <div className="md:col-span-2">
-          <AssignedMenusTable
-            roleMenus={roleMenus}
-            onDelete={handleDeleteRoleMenu}
-            onSelect={handleAssignedMenuSelect}
-            selectedMenus={selectedAssignedMenus}
-            onPermissionChange={handlePermissionChange}
-          />
-          <button
-            onClick={handleUnassignSelectedMenus}
-            disabled={loading || !selectedRole || selectedAssignedMenus.length === 0}
-            className="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors duration-300 mt-4"
+
+        <div className="relative group">
+          <select
+            className="appearance-none pl-12 pr-10 py-4 bg-white border-2 border-indigo-100 rounded-2xl font-black text-gray-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm cursor-pointer min-w-[300px]"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
           >
-            {loading ? 'Unassigning...' : 'Unassign Selected Menus'}
-          </button>
+            <option value="">Select Target Role</option>
+            {roles.map(role => (
+              <option key={role.roleID} value={role.roleID}>{role.roleName}</option>
+            ))}
+          </select>
+          <FaShieldAlt className="absolute left-4 top-5 text-indigo-400 group-hover:text-indigo-600 transition-colors" />
         </div>
       </div>
+
+      {!selectedRole ? (
+        <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100 p-20 text-center">
+          <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <FaUniversalAccess className="text-gray-300" size={40} />
+          </div>
+          <h3 className="text-xl font-black text-gray-400 uppercase tracking-widest">Navigation Lock</h3>
+          <p className="text-gray-400 max-w-md mx-auto mt-2">Select a role to unlock navigation management and CRUD authorization settings.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+          {/* AVAILABLE MENUS PANEL */}
+          <div className="lg:col-span-4 bg-white rounded-[2rem] p-8 shadow-xl shadow-gray-200/40 border border-gray-50">
+            <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-50">
+              <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
+                <FaLayerGroup className="text-indigo-500" /> Available
+              </h3>
+              <div className="flex items-center gap-2">
+                {availableMenus.length > 0 && (
+                  <button
+                    onClick={handleSelectAllAvailable}
+                    className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border transition-all text-gray-500 hover:bg-gray-50 border-gray-200"
+                  >
+                    {selectedAvailableMenus.length === availableMenus.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                )}
+                <span className="bg-gray-100 text-gray-400 px-3 py-1.5 rounded-lg text-[10px] font-black">{availableMenus.length}</span>
+                <button
+                  onClick={() => window.location.href = '/menus/add'}
+                  className="p-1.5 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                  title="Create New Menu Node"
+                >
+                  <FaPlus size={14} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+              {availableMenus.length > 0 ? availableMenus.map(menu => (
+                <div
+                  key={menu.menuID}
+                  onClick={() => handleToggleAvailable(menu.menuID)}
+                  className={`flex items-center justify-between p-4 rounded-xl cursor-pointer transition-all border ${selectedAvailableMenus.includes(menu.menuID)
+                      ? 'bg-indigo-50 border-indigo-100 shadow-sm'
+                      : 'bg-white border-transparent hover:bg-gray-50'
+                    }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0">
+                      {selectedAvailableMenus.includes(menu.menuID)
+                        ? <FaCheckCircle className="text-indigo-600 text-lg" />
+                        : <FaCircle className="text-gray-200 text-lg" />}
+                    </div>
+                    <span className={`text-sm font-bold ${selectedAvailableMenus.includes(menu.menuID) ? 'text-indigo-900' : 'text-gray-600'}`}>
+                      {menu.menuName}
+                    </span>
+                  </div>
+                  <FaChevronRight className="text-gray-200 text-xs" />
+                </div>
+              )) : (
+                <p className="text-center py-10 text-gray-300 italic text-sm">All menus assigned</p>
+              )}
+            </div>
+
+            <button
+              onClick={handleAssignMenus}
+              disabled={selectedAvailableMenus.length === 0 || loading}
+              className={`w-full mt-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all ${selectedAvailableMenus.length > 0
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1'
+                  : 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                }`}
+            >
+              {loading ? 'Syncing...' : 'Assign Selected'} <FaArrowRight />
+            </button>
+          </div>
+
+          {/* ASSIGNED MENUS MATRIX */}
+          <div className="lg:col-span-8 bg-white rounded-[2rem] p-8 shadow-xl shadow-gray-200/40 border border-gray-50 overflow-hidden">
+            <div className="flex items-center justify-between mb-8 pb-4 border-b border-gray-50">
+              <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
+                <FaShieldAlt className="text-emerald-500" /> Active Navigation Matrix
+              </h3>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-gray-50">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50/50">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Menu Node</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">View</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Add</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Edit</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Del</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {roleMenus.length > 0 ? roleMenus.map(rm => (
+                    <tr key={rm.roleMenuID} className="group hover:bg-gray-50/50 transition-all">
+                      <td className="px-6 py-5">
+                        <span className="font-black text-gray-700 text-sm">{rm.menuName}</span>
+                      </td>
+                      {['canView', 'canAdd', 'canEdit', 'canDelete'].map(perm => (
+                        <td key={perm} className="px-6 py-5 text-center">
+                          <button
+                            onClick={() => handlePermissionChange(rm, perm, !rm[perm])}
+                            className={`w-6 h-6 rounded-lg mx-auto flex items-center justify-center transition-all ${rm[perm]
+                                ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200 scale-110'
+                                : 'bg-gray-100 text-transparent hover:bg-gray-200'
+                              }`}
+                          >
+                            <FaCheckCircle size={12} />
+                          </button>
+                        </td>
+                      ))}
+                      <td className="px-6 py-5 text-right">
+                        <button
+                          onClick={() => handleUnassign(rm.roleMenuID)}
+                          className="p-2.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <FaTrash size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan="6" className="py-20 text-center text-gray-300 font-bold italic">No active navigation nodes found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      )}
     </div>
   );
 };

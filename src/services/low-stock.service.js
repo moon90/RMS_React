@@ -22,7 +22,7 @@ export const getLowStockAlerts = async () => {
 
 export const adjustStock = async (transaction) => {
   try {
-    const response = await apiClient.post('/StockTransaction', transaction);
+    const response = await apiClient.post('/StockTransactions', transaction);
     return response;
   } catch (error) {
     console.error('Error adjusting stock:', error);

@@ -1,105 +1,153 @@
-
-import React, { useState, useEffect } from 'react';
-import { createProduct } from '../../services/productService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createProduct, updateProduct } from '../../services/productService';
 import { getAllCategories } from '../../services/categoryService';
 import { getAllSuppliers } from '../../services/supplierService';
 import { getAllManufacturers } from '../../services/manufacturerService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { hasPermission } from '../../utils/permissionUtils';
 import FormCard from '../../components/FormCard.jsx';
 import { toast } from 'react-toastify';
-import { validateImage } from '../../utils/imageValidation'; // Added
+import { 
+  FaBoxOpen, 
+  FaSave, 
+  FaUndo, 
+  FaCheckCircle, 
+  FaTimesCircle,
+  FaTag,
+  FaIndustry,
+  FaTruck,
+  FaMoneyBillWave,
+  FaBarcode,
+  FaImage,
+  FaCalendarAlt
+} from 'react-icons/fa';
 
-const ValidationToast = ({ title, messages }) => (
-  <div>
-    <strong>{title}</strong>
-    <ul style={{ whiteSpace: 'pre-wrap', textAlign: 'left', paddingLeft: '20px' }}>
-      {messages.map((msg, index) => (
-        <li key={index}>{msg}</li>
-      ))}
-    </ul>
-  </div>
-);
+const ProductAdd = ({ isEdit = false, productData = null, onClose, onSave, showTitle = true }) => {
+  const [formData, setFormData] = useState({
+    productName: '',
+    productBarcode: '',
+    productPrice: '',
+    costPrice: '',
+    categoryID: '',
+    supplierID: '',
+    manufacturerID: '',
+    expireDate: '',
+    status: true,
+    thumbnailImage: '',
+    thumbnailFile: null,
+    productImage: '',
+    productImageFile: null
+  });
+  
+  const [dependencies, setDependencies] = useState({
+    categories: [],
+    suppliers: [],
+    manufacturers: []
+  });
 
-const ProductAdd = () => {
-  const [productName, setProductName] = useState('');
-  const [productPrice, setProductPrice] = useState('');
-  const [costPrice, setCostPrice] = useState('');
-  const [productBarcode, setProductBarcode] = useState('');
-  const [productImageFile, setProductImageFile] = useState(null);
-  const [thumbnailImageFile, setThumbnailImageFile] = useState(null);
-  const [productImagePreview, setProductImagePreview] = useState(null);
-  const [thumbnailImagePreview, setThumbnailImagePreview] = useState(null);
-  const [categoryID, setCategoryID] = useState('');
-  const [supplierID, setSupplierID] = useState('');
-  const [manufacturerID, setManufacturerID] = useState('');
-  const [expireDate, setExpireDate] = useState('');
-  const [status, setStatus] = useState(true);
-  const [categories, setCategories] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
-  const [manufacturers, setManufacturers] = useState([]);
   const [errors, setErrors] = useState({});
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const canCreate = user?.permissions?.includes('PRODUCT_CREATE');
+  const canCreate = hasPermission('PRODUCT_CREATE');
+  const canUpdate = hasPermission('PRODUCT_UPDATE');
+
+  const fetchDependencies = useCallback(async () => {
+    try {
+      const [cats, sups, mans] = await Promise.all([
+        getAllCategories({ pageNumber: 1, pageSize: 1000, status: true }),
+        getAllSuppliers({ pageNumber: 1, pageSize: 1000, status: true }),
+        getAllManufacturers({ pageNumber: 1, pageSize: 1000, status: true })
+      ]);
+
+      const normalize = (res, idKey, nameKey) => {
+        if (!res.data || !res.data.isSuccess) return [];
+        const items = res.data.data?.items || res.data.data || [];
+        return items.map(i => ({
+          id: i[idKey] || i.id || i.Id,
+          name: i[nameKey] || i.name || i.Name
+        }));
+      };
+
+      setDependencies({
+        categories: normalize(cats, 'categoryID', 'categoryName'),
+        suppliers: normalize(sups, 'supplierID', 'supplierName'),
+        manufacturers: normalize(mans, 'manufacturerID', 'manufacturerName')
+      });
+    } catch (error) {
+      console.error('Dependency sync failure:', error);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!canCreate) {
-      navigate('/access-denied');
-    }
-
-    const fetchDependencies = async () => {
-      try {
-        const [categoriesRes, suppliersRes, manufacturersRes] = await Promise.all([
-          getAllCategories({ pageNumber: 1, pageSize: 1000, status: true }),
-          getAllSuppliers({ pageNumber: 1, pageSize: 1000, status: true }),
-          getAllManufacturers({ pageNumber: 1, pageSize: 1000, status: true }),
-        ]);
-
-        if (categoriesRes.data.isSuccess) {
-          setCategories(categoriesRes.data.data.items);
-        }
-        if (suppliersRes.data.isSuccess) {
-          setSuppliers(suppliersRes.data.data.items);
-        }
-        if (manufacturersRes.data.isSuccess) {
-          setManufacturers(manufacturersRes.data.data.items);
-        }
-      } catch (error) {
-        toast.error('Failed to load dependencies.');
-        console.error(error);
-      }
-    };
-
     fetchDependencies();
+  }, [fetchDependencies]);
 
-    return () => {
-      if (productImagePreview) {
-        URL.revokeObjectURL(productImagePreview);
-      }
-      if (thumbnailImagePreview) {
-        URL.revokeObjectURL(thumbnailImagePreview);
-      }
-    };
-  }, [canCreate, navigate, productImagePreview, thumbnailImagePreview]);
+  useEffect(() => {
+    if (isEdit && productData) {
+      setFormData({
+        id: productData.id,
+        productName: productData.productName || '',
+        productBarcode: productData.productBarcode || '',
+        productPrice: productData.productPrice || '',
+        costPrice: productData.costPrice || '',
+        categoryID: productData.categoryID || '',
+        supplierID: productData.supplierID || '',
+        manufacturerID: productData.manufacturerID || '',
+        expireDate: productData.expireDate ? productData.expireDate.split('T')[0] : '',
+        status: productData.status ?? true,
+        thumbnailImage: productData.thumbnailImage || '',
+        thumbnailFile: null,
+        productImage: productData.productImage || '',
+        productImageFile: null
+      });
+    }
+  }, [isEdit, productData]);
 
-  const handleImageChange = (e, setImageFile, setPreview) => {
-    const file = e.target.files[0];
-    if (file) {
-      const validationResult = validateImage(file); // Validate the image
-      if (!validationResult.isValid) {
-        toast.error(validationResult.message);
-        e.target.value = null; // Clear the file input
-        setImageFile(null);
-        setPreview(null);
-        return;
-      }
-      setImageFile(file);
-      setPreview(URL.createObjectURL(file));
+  const handleInputChange = (e) => {
+    const { name, value, type } = e.target;
+    setFormData(prev => ({ 
+      ...prev, 
+      [name]: type === 'number' ? parseFloat(value) : value 
+    }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const handleReset = () => {
+    setErrors({});
+    if (isEdit && productData) {
+      setFormData({
+        id: productData.id,
+        productName: productData.productName || '',
+        productBarcode: productData.productBarcode || '',
+        productPrice: productData.productPrice || '',
+        costPrice: productData.costPrice || '',
+        categoryID: productData.categoryID || '',
+        supplierID: productData.supplierID || '',
+        manufacturerID: productData.manufacturerID || '',
+        expireDate: productData.expireDate ? productData.expireDate.split('T')[0] : '',
+        status: productData.status ?? true,
+        thumbnailImage: productData.thumbnailImage || '',
+        thumbnailFile: null,
+        productImage: productData.productImage || '',
+        productImageFile: null
+      });
     } else {
-      setImageFile(null);
-      setPreview(null);
+      setFormData({
+        productName: '',
+        productBarcode: '',
+        productPrice: '',
+        costPrice: '',
+        categoryID: '',
+        supplierID: '',
+        manufacturerID: '',
+        expireDate: '',
+        status: true,
+        thumbnailImage: '',
+        thumbnailFile: null,
+        productImage: '',
+        productImageFile: null
+      });
     }
   };
 
@@ -107,237 +155,256 @@ const ProductAdd = () => {
     e.preventDefault();
     setErrors({});
 
-    // Frontend validation for images before sending
-    if (productImageFile) {
-      const validationResult = validateImage(productImageFile);
-      if (!validationResult.isValid) {
-        toast.error(`Product Image: ${validationResult.message}`);
-        return;
-      }
+    const newErrors = {};
+    if (!formData.productName.trim()) newErrors.productName = 'Product name is required';
+    if (!formData.productPrice || formData.productPrice <= 0) newErrors.productPrice = 'Valid price is required';
+    if (!formData.categoryID) newErrors.categoryID = 'Category is required';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error('Validation Error: Please check required fields.');
+      return;
     }
-    if (thumbnailImageFile) {
-      const validationResult = validateImage(thumbnailImageFile);
-      if (!validationResult.isValid) {
-        toast.error(`Thumbnail Image: ${validationResult.message}`);
-        return;
-      }
-    }
+
+    setIsLoading(true);
 
     try {
-      const formData = new FormData();
-
-      formData.append('productName', productName);
-      formData.append('productPrice', parseFloat(productPrice));
-      if (costPrice) formData.append('costPrice', parseFloat(costPrice));
-      if (productBarcode) formData.append('productBarcode', productBarcode);
-      if (productImageFile) formData.append('productImageFile', productImageFile);
-      if (thumbnailImageFile) formData.append('thumbnailImageFile', thumbnailImageFile);
-      if (categoryID) formData.append('categoryID', parseInt(categoryID));
-      if (supplierID) formData.append('supplierID', parseInt(supplierID));
-      if (manufacturerID) formData.append('manufacturerID', parseInt(manufacturerID));
-      if (expireDate) formData.append('expireDate', new Date(expireDate).toISOString());
-      formData.append('status', status);
-
-      await createProduct(formData);
-      toast.success('Product created successfully!');
-      navigate('/products/list');
-    } catch (err) {
-      if (err.response && err.response.data && err.response.data.details) {
-        const newErrors = {};
-        const errorMessages = err.response.data.details.map(error => {
-          newErrors[error.propertyName.toLowerCase()] = error.errorMessage;
-          return `- ${error.errorMessage}`;
-        });
-        setErrors(newErrors);
-        toast.error(<ValidationToast title={err.response.data.message} messages={errorMessages} />);
-      } else {
-        toast.error(err.response?.data?.message || err.message || 'An error occurred.');
+      const fd = new FormData();
+      if (isEdit) fd.append('Id', formData.id);
+      fd.append('ProductName', formData.productName);
+      if (formData.productBarcode) fd.append('ProductBarcode', formData.productBarcode);
+      fd.append('ProductPrice', formData.productPrice);
+      if (formData.costPrice) fd.append('CostPrice', formData.costPrice);
+      fd.append('Status', formData.status);
+      if (formData.categoryID) fd.append('CategoryID', formData.categoryID);
+      if (formData.supplierID) fd.append('SupplierID', formData.supplierID);
+      if (formData.manufacturerID) fd.append('ManufacturerID', formData.manufacturerID);
+      if (formData.expireDate) {
+        try {
+          fd.append('ExpireDate', new Date(formData.expireDate).toISOString());
+        } catch (e) {
+          console.error("Invalid date:", formData.expireDate);
+        }
       }
-      console.error(err);
+      
+      if (formData.thumbnailFile) {
+        fd.append('thumbnailImageFile', formData.thumbnailFile);
+      } else if (formData.thumbnailImage) {
+        fd.append('ThumbnailImage', formData.thumbnailImage);
+      }
+
+      if (formData.productImageFile) {
+        fd.append('productImageFile', formData.productImageFile);
+      } else if (formData.productImage) {
+        fd.append('ProductImage', formData.productImage);
+      }
+
+      let response = isEdit ? await updateProduct(formData.id, fd) : await createProduct(fd);
+
+      if (response.data && response.data.isSuccess) {
+        toast.success(isEdit ? 'Product updated.' : 'Product created.');
+        if (onSave) onSave();
+        if (onClose) onClose();
+      } else {
+        toast.error(response.data?.message || 'Error saving product.');
+      }
+    } catch (error) {
+      toast.error('Critical failure during submission.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (!canCreate) {
-    return null;
-  }
-
   return (
-    <div className="p-3 max-w-4xl mx-auto">
+    <div className="p-1 max-w-5xl mx-auto text-left">
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New Product</h2>
+        {showTitle && (
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+            <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-100">
+              <FaBoxOpen className="text-white text-xl" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+                {isEdit ? 'Edit Product' : 'Add Product'}
+              </h2>
+            </div>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="productName" className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
-              <input
-                type="text"
-                id="productName"
-                name="productName"
-                value={productName}
-                placeholder="Enter product name"
-                onChange={(e) => setProductName(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.productName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.productName && <p className="text-red-500 text-xs mt-1">{errors.productName}</p>}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            
+            {/* LEFT SECTION: MAIN FIELDS (Col span 8) */}
+            <div className="md:col-span-8 space-y-6">
+              {/* Product Identity */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Product Name</label>
+                  <div className="relative">
+                    <FaBoxOpen className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <input type="text" name="productName" value={formData.productName} onChange={handleInputChange} className="w-full pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm" placeholder="e.g. Burger" required />
+                  </div>
+                </div>
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Barcode</label>
+                  <div className="relative">
+                    <FaBarcode className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <input type="text" name="productBarcode" value={formData.productBarcode} onChange={handleInputChange} className="w-full pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm" placeholder="Barcode" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Financials */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Price</label>
+                  <div className="relative">
+                    <FaMoneyBillWave className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <input type="number" step="0.01" name="productPrice" value={formData.productPrice} onChange={handleInputChange} className="w-full pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm" placeholder="0.00" required />
+                  </div>
+                </div>
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Cost</label>
+                  <div className="relative">
+                    <FaMoneyBillWave className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <input type="number" step="0.01" name="costPrice" value={formData.costPrice} onChange={handleInputChange} className="w-full pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm" placeholder="0.00" />
+                  </div>
+                </div>
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Expiry</label>
+                  <div className="relative">
+                    <FaCalendarAlt className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <input type="date" name="expireDate" value={formData.expireDate} onChange={handleInputChange} className="w-full pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Taxonomy */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Category</label>
+                  <div className="relative">
+                    <FaTag className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <select name="categoryID" value={formData.categoryID} onChange={handleInputChange} className="w-full pl-11 pr-10 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm appearance-none" required>
+                      <option value="">Unassigned</option>
+                      {dependencies.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Supplier</label>
+                  <div className="relative">
+                    <FaTruck className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <select name="supplierID" value={formData.supplierID} onChange={handleInputChange} className="w-full pl-11 pr-10 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm appearance-none">
+                      <option value="">Unassigned</option>
+                      {dependencies.suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="relative group">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-1.5 block group-focus-within:text-blue-600 transition-colors">Manufacturer</label>
+                  <div className="relative">
+                    <FaIndustry className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <select name="manufacturerID" value={formData.manufacturerID} onChange={handleInputChange} className="w-full pl-11 pr-10 py-3 bg-gray-50 border-2 border-transparent rounded-xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 text-sm appearance-none">
+                      <option value="">Unassigned</option>
+                      {dependencies.manufacturers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Toggle (Compact) */}
+              <div className="flex items-center gap-4 p-1 bg-gray-50 rounded-xl border-2 border-transparent transition-all max-w-xs">
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, status: true }))} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${formData.status ? 'bg-white text-green-600 shadow-sm border border-green-100' : 'text-gray-400'}`}>
+                  <FaCheckCircle /> Available
+                </button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, status: false }))} className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${!formData.status ? 'bg-white text-red-600 shadow-sm border border-red-100' : 'text-gray-400'}`}>
+                  <FaTimesCircle /> Delisted
+                </button>
+              </div>
             </div>
-            <div>
-              <label htmlFor="productPrice" className="block text-sm font-medium text-gray-700 mb-1">Product Price</label>
-              <input
-                type="number"
-                id="productPrice"
-                name="productPrice"
-                value={productPrice}
-                placeholder="Enter product price"
-                onChange={(e) => setProductPrice(e.target.value)}
-                required
-                step="0.01"
-                className={`w-full px-4 py-2 border ${errors.productPrice ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.productPrice && <p className="text-red-500 text-xs mt-1">{errors.productPrice}</p>}
-            </div>
-            <div>
-              <label htmlFor="costPrice" className="block text-sm font-medium text-gray-700 mb-1">Cost Price</label>
-              <input
-                type="number"
-                id="costPrice"
-                name="costPrice"
-                value={costPrice}
-                placeholder="Enter cost price"
-                onChange={(e) => setCostPrice(e.target.value)}
-                step="0.01"
-                className={`w-full px-4 py-2 border ${errors.costPrice ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.costPrice && <p className="text-red-500 text-xs mt-1">{errors.costPrice}</p>}
-            </div>
-            <div>
-              <label htmlFor="productBarcode" className="block text-sm font-medium text-gray-700 mb-1">Product Barcode</label>
-              <input
-                type="text"
-                id="productBarcode"
-                name="productBarcode"
-                value={productBarcode}
-                placeholder="Enter product barcode"
-                onChange={(e) => setProductBarcode(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.productBarcode ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.productBarcode && <p className="text-red-500 text-xs mt-1">{errors.productBarcode}</p>}
-            </div>
-            <div>
-              <label htmlFor="productImage" className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
-              <input
-                type="file"
-                id="productImage"
-                name="productImage"
-                accept="image/*"
-                onChange={(e) => handleImageChange(e, setProductImageFile, setProductImagePreview)} // Modified
-                className={`w-full px-4 py-2 border ${errors.productImage ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.productImage && <p className="text-red-500 text-xs mt-1">{errors.productImage}</p>}
-              <img src={productImagePreview || '/images/placeholder.png'} alt="Product Preview" className="mt-2 h-32 w-32 object-cover" onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder.png'; }} />
-            </div>
-            <div>
-              <label htmlFor="thumbnailImage" className="block text-sm font-medium text-gray-700 mb-1">Thumbnail Image</label>
-              <input
-                type="file"
-                id="thumbnailImage"
-                name="thumbnailImage"
-                accept="image/*"
-                onChange={(e) => handleImageChange(e, setThumbnailImageFile, setThumbnailImagePreview)} // Modified
-                className={`w-full px-4 py-2 border ${errors.thumbnailImage ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.thumbnailImage && <p className="text-red-500 text-xs mt-1">{errors.thumbnailImage}</p>}
-              <img src={thumbnailImagePreview || '/images/placeholder.png'} alt="Thumbnail Preview" className="mt-2 h-32 w-32 object-cover" onError={(e) => { e.target.onerror = null; e.target.src = '/images/placeholder.png'; }} />
-            </div>
-            <div>
-              <label htmlFor="categoryID" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select
-                id="categoryID"
-                name="categoryID"
-                value={categoryID}
-                onChange={(e) => setCategoryID(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.categoryID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="">Select Category</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.categoryName}</option>
-                ))}
-              </select>
-              {errors.categoryID && <p className="text-red-500 text-xs mt-1">{errors.categoryID}</p>}
-            </div>
-            <div>
-              <label htmlFor="supplierID" className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-              <select
-                id="supplierID"
-                name="supplierID"
-                value={supplierID}
-                onChange={(e) => setSupplierID(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.supplierID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="">Select Supplier</option>
-                {suppliers.map(sup => (
-                  <option key={sup.id} value={sup.id}>{sup.supplierName}</option>
-                ))}
-              </select>
-              {errors.supplierID && <p className="text-red-500 text-xs mt-1">{errors.supplierID}</p>}
-            </div>
-            <div>
-              <label htmlFor="manufacturerID" className="block text-sm font-medium text-gray-700 mb-1">Manufacturer</label>
-              <select
-                id="manufacturerID"
-                name="manufacturerID"
-                value={manufacturerID}
-                onChange={(e) => setManufacturerID(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.manufacturerID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="">Select Manufacturer</option>
-                {manufacturers.map(man => (
-                  <option key={man.id} value={man.id}>{man.manufacturerName}</option>
-                ))}
-              </select>
-              {errors.manufacturerID && <p className="text-red-500 text-xs mt-1">{errors.manufacturerID}</p>}
-            </div>
-            <div>
-              <label htmlFor="expireDate" className="block text-sm font-medium text-gray-700 mb-1">Expire Date</label>
-              <input
-                type="date"
-                id="expireDate"
-                name="expireDate"
-                value={expireDate}
-                onChange={(e) => setExpireDate(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.expireDate ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.expireDate && <p className="text-red-500 text-xs mt-1">{errors.expireDate}</p>}
-            </div>
-            <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                id="status"
-                name="status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value === 'true')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
+
+            {/* RIGHT SECTION: MEDIA (Col span 4) */}
+            <div className="md:col-span-4 flex flex-col gap-4">
+               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 block">Visual Assets</label>
+               
+               {/* Thumbnail Image */}
+               <div className="space-y-2">
+                 <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1 italic">Thumbnail (Card View)</p>
+                 <div 
+                    className={`relative border-2 border-dashed rounded-2xl p-4 transition-all flex flex-col items-center justify-center gap-3 cursor-pointer overflow-hidden min-h-[140px] ${
+                      formData.thumbnailImage ? 'border-blue-100 bg-blue-50/10' : 'border-gray-100 bg-gray-50/50 hover:bg-gray-50'
+                    }`}
+                    onClick={() => document.getElementById('thumbUpload').click()}
+                  >
+                    <input id="thumbUpload" type="file" accept="image/*" className="hidden" onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setFormData(prev => ({ ...prev, thumbnailFile: file }));
+                        const reader = new FileReader();
+                        reader.onloadend = () => setFormData(prev => ({ ...prev, thumbnailImage: reader.result }));
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                    {formData.thumbnailImage ? (
+                      <img src={formData.thumbnailImage} alt="Thumbnail Preview" className="w-full h-24 object-cover rounded-lg shadow-sm border border-white" />
+                    ) : (
+                      <div className="text-center">
+                        <FaImage className="text-gray-200 mx-auto mb-2" size={24} />
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-tight text-center">Drag Thumbnail</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Main Product Image */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest ml-1 italic">High-Res Image (Detail View)</p>
+                  <div 
+                    className={`relative border-2 border-dashed rounded-2xl p-4 transition-all flex flex-col items-center justify-center gap-3 cursor-pointer overflow-hidden min-h-[140px] ${
+                      formData.productImage ? 'border-blue-100 bg-blue-50/10' : 'border-gray-100 bg-gray-50/50 hover:bg-gray-50'
+                    }`}
+                    onClick={() => document.getElementById('productImageUpload').click()}
+                  >
+                    <input id="productImageUpload" type="file" accept="image/*" className="hidden" onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setFormData(prev => ({ ...prev, productImageFile: file }));
+                        const reader = new FileReader();
+                        reader.onloadend = () => setFormData(prev => ({ ...prev, productImage: reader.result }));
+                        reader.readAsDataURL(file);
+                      }
+                    }} />
+                    {formData.productImage ? (
+                      <img src={formData.productImage} alt="Main Preview" className="w-full h-24 object-cover rounded-lg shadow-sm border border-white" />
+                    ) : (
+                      <div className="text-center">
+                        <FaImage className="text-gray-200 mx-auto mb-2" size={24} />
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-tight text-center">Drag Full-size Image</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative group">
+                  <div className="relative">
+                    <FaImage className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-200 text-xs" />
+                    <input type="text" name="thumbnailImage" value={formData.thumbnailImage?.startsWith('data:') ? '' : formData.thumbnailImage} onChange={handleInputChange} className="w-full pl-9 pr-3 py-2 bg-gray-50 border-2 border-transparent rounded-lg outline-none text-[9px] font-bold text-gray-500 focus:bg-white focus:border-blue-100" placeholder="PASTE IMAGE URL..." />
+                  </div>
+                </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/products/list')}
-              className="px-5 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition"
-            >
-              Cancel
+          {/* ACTIONS */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-50">
+            <button type="button" onClick={() => { handleReset(); if(onClose) onClose(); }} className="px-6 py-3 bg-gray-50 text-gray-400 rounded-xl font-black text-[10px] uppercase tracking-widest hover:text-gray-600 transition-all flex items-center gap-2">
+              <FaUndo /> Reset
             </button>
-            <button
-              type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
-            >
-              Add Product
+            <button type="submit" disabled={isLoading} className="px-8 py-3 bg-blue-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-0.5 transition-all flex items-center gap-2 disabled:opacity-50">
+              <FaSave /> {isLoading ? 'Saving...' : isEdit ? 'Update' : 'Save'}
             </button>
           </div>
         </form>

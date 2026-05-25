@@ -1,32 +1,43 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
 import { getAllDiningTables, deleteDiningTable, updateDiningTableStatus } from '../../services/diningTableService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { FaEdit, FaTrash, FaPlus } from 'react-icons/fa';
-import ProfessionalPagination from '../../components/ProfessionalPagination';
 import { toast } from 'react-toastify';
+import ProfessionalPagination from '../../components/ProfessionalPagination';
+import { hasPermission } from '../../utils/permissionUtils';
+import DiningTableAdd from './DiningTableAdd';
+import { 
+  FaSearch, 
+  FaPlus, 
+  FaEdit, 
+  FaTrashAlt, 
+  FaUtensils,
+  FaFilter,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaLayerGroup,
+  FaTh
+} from 'react-icons/fa';
 
-const DiningTableList = () => {
-  const [diningTables, setDiningTables] = useState([]);
-  const [totalDiningTables, setTotalDiningTables] = useState(0);
+export default function DiningTableList() {
+  const [tables, setTables] = useState([]);
+  const [totalTables, setTotalTables] = useState(0);
+  const [selectedTable, setSelectedTable] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50); 
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('tableID');
+  const [sortField, setSortField] = useState('TableID');
   const [sortDirection, setSortDirection] = useState('asc');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [filters, setFilters] = useState({
+    status: ''
+  });
   const [isLoading, setIsLoading] = useState(false);
 
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const canCreate = hasPermission('DINING_TABLE_CREATE');
+  const canUpdate = hasPermission('DINING_TABLE_UPDATE');
+  const canDelete = hasPermission('DINING_TABLE_DELETE');
 
-  const canView = user?.permissions?.includes('DINING_TABLE_VIEW');
-  const canCreate = user?.permissions?.includes('DINING_TABLE_CREATE');
-  const canEdit = user?.permissions?.includes('DINING_TABLE_UPDATE');
-  const canDelete = user?.permissions?.includes('DINING_TABLE_DELETE');
-
-  const fetchDiningTables = useCallback(async () => {
+  const fetchTables = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = {
@@ -35,35 +46,33 @@ const DiningTableList = () => {
         searchQuery: searchTerm,
         sortColumn: sortField,
         sortDirection: sortDirection,
-        status: statusFilter === '' ? null : statusFilter
+        status: filters.status === 'active' ? true : filters.status === 'inactive' ? false : null,
       };
       const response = await getAllDiningTables(params);
-      console.log('Fetch Dining Tables Response:', response);
-      if (response.data.isSuccess) {
-        setDiningTables(response.data.data.data.items);
-        setTotalDiningTables(response.data.data.data.totalRecords || 0);
+      if (response.data && response.data.isSuccess) {
+        const rawData = response.data.data || {};
+        // Unified items extraction
+        setTables(rawData.items || rawData.Items || (Array.isArray(rawData) ? rawData : []));
+        // Unified total records extraction
+        const total = rawData.totalRecords || rawData.TotalRecords || rawData.totalCount || rawData.TotalCount || (rawData.items?.length || 0);
+        setTotalTables(total);
       } else {
-        toast.error(response.data.message || 'Failed to fetch dining tables');
-        setDiningTables([]);
-        setTotalDiningTables(0);
+        toast.error('Failed to load table list.');
+        setTables([]);
+        setTotalTables(0);
       }
     } catch (error) {
-      toast.error('An error occurred while fetching dining tables.');
-      console.error(error);
-      setDiningTables([]);
-      setTotalDiningTables(0);
+      toast.error('Critical failure: Table list unreachable.');
+      setTables([]);
+      setTotalTables(0);
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection, statusFilter]);
+  }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection, filters.status]);
 
   useEffect(() => {
-    if (!canView) {
-      navigate('/access-denied');
-      return;
-    }
-    fetchDiningTables();
-  }, [canView, navigate, fetchDiningTables]);
+    fetchTables();
+  }, [fetchTables]);
 
   const debouncedSearch = useCallback(debounce((value) => {
     setSearchTerm(value);
@@ -72,6 +81,12 @@ const DiningTableList = () => {
 
   const handleSearchChange = (event) => {
     debouncedSearch(event.target.value);
+  };
+
+  const handleFilter = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({ ...prev, [name]: value }));
+    setCurrentPage(1);
   };
 
   const handleSort = (field) => {
@@ -84,268 +99,224 @@ const DiningTableList = () => {
     }
   };
 
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleRowsPerPageChange = (newRowsPerPage) => {
-    setItemsPerPage(newRowsPerPage);
-    setCurrentPage(1);
-  };
-
-  const handleToggleStatus = async (id, currentStatus) => {
-    if (!canEdit) {
-      toast.error('You do not have permission to edit dining tables.');
-      return;
-    }
-
-    const newStatus = !currentStatus; // Toggle boolean status
-
+  const handleToggleStatus = async (table) => {
+    if (!canUpdate) return;
     try {
-      const response = await updateDiningTableStatus({ tableID: id, status: newStatus }); // Update 'status' boolean
-      if (response.data.succeeded) {
-        toast.success('Dining table active status updated successfully');
-        fetchDiningTables();
-      } else {
-        toast.error(response.data.message || 'Failed to update dining table active status');
+      const response = await updateDiningTableStatus({ tableID: table.tableID, status: !table.status });
+      if (response.data.isSuccess || response.data.succeeded) {
+        toast.success(`Table '${table.tableName}' availability updated.`);
+        fetchTables();
       }
     } catch (error) {
-      toast.error('An error occurred while updating the dining table active status.');
-      console.error(error);
+      toast.error('Status Update failed.');
     }
   };
 
   const handleDelete = (id) => {
-    if (!canDelete) {
-      toast.error('You do not have permission to delete dining tables.');
-      return;
-    }
-    toast(
-      ({ closeToast }) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-800 mb-2">Are you sure you want to delete this dining table?</span>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const response = await deleteDiningTable(id);
-                  if (response.data.isSuccess) {
-                    toast.success('Dining table deleted successfully');
-                  } else {
-                    toast.error(response.data.message || 'Failed to delete dining table');
-                  }
-                } catch (error) {
-                  if (error.response && error.response.data && error.response.data.message) {
-                    toast.error(error.response.data.message);
-                  } else {
-                    toast.error('An error occurred while deleting the dining table.');
-                  }
-                  console.error(error);
-                } finally {
-                  fetchDiningTables();
-                  closeToast();
+    if (!canDelete) return;
+    
+    toast(({ closeToast }) => (
+      <div className="p-1">
+        <p className="text-sm font-bold text-gray-800 mb-3">Delete this table permanently?</p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const response = await deleteDiningTable(id);
+                if (response.data.isSuccess) {
+                  toast.success('Table deleted successfully');
+                  fetchTables();
+                } else {
+                  toast.error(response.data.message || 'Delete rejected by system');
                 }
-              }}
-              className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Delete
-            </button>
-            <button
-              onClick={closeToast}
-              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </div>
+              } catch (err) {
+                toast.error('Cannot delete table: Active service dependencies');
+              }
+              closeToast();
+            }}
+            className="bg-red-500 text-white px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-red-600 transition-colors"
+          >
+            Confirm
+          </button>
+          <button
+            onClick={closeToast}
+            className="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false
-      }
-    );
+      </div>
+    ), { autoClose: false, closeOnClick: false });
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-center">
-        <h2 className="text-2xl font-semibold">Dining Table List</h2>
+    <div className="container mx-auto p-6 animate-fade-in max-w-7xl text-left">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3 uppercase">
+            <FaUtensils className="text-blue-600" />
+            Table List
+          </h1>
+          <p className="text-gray-500 mt-1 font-medium italic">Manage dining table allocation and operational availability</p>
+        </div>
+        
         {canCreate && (
           <button
-            onClick={() => navigate('/dining-tables/add')}
-            className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+            onClick={() => { setSelectedTable(null); setIsEditModalOpen(true); }}
+            className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 transition-all active:scale-95 uppercase text-xs tracking-widest"
           >
-            Add New Dining Table
+            <FaPlus /> Add Table
           </button>
         )}
       </div>
 
-      {/* Search */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      {/* FILTER & SEARCH BAR */}
+      <div className="mb-8 flex flex-col md:flex-row gap-4 items-center text-left">
+        <div className="relative group flex-1 w-full">
           <input
             type="text"
-            placeholder="Search dining tables..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Search tables..."
+            className="w-full pl-12 pr-4 py-4 bg-white border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all shadow-sm group-hover:shadow-md font-bold text-gray-700"
             onChange={handleSearchChange}
-            disabled={isLoading}
           />
-          <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
+          <FaSearch className="absolute top-5 left-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
         </div>
-        <div className="relative">
-          <select
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            disabled={isLoading}
-          >
-            <option value="">All Statuses</option>
-            <option value="Available">Available</option>
-            <option value="Occupied">Occupied</option>
-            <option value="Reserved">Reserved</option>
-          </select>
+        
+        <div className="flex gap-4 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-none">
+            <FaFilter className="absolute left-4 top-5 text-gray-400 pointer-events-none" />
+            <select 
+              name="status" 
+              className="w-full pl-10 pr-10 py-4 bg-white border-2 border-gray-100 rounded-2xl focus:border-blue-500 outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 cursor-pointer shadow-sm hover:shadow-md transition-all appearance-none"
+              onChange={handleFilter}
+              value={filters.status}
+            >
+              <option value="">Global Status</option>
+              <option value="active">Operational</option>
+              <option value="inactive">Maintenance</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Responsive Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">#</th>
-              <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('tableID')}
-              >
-                <div className="flex items-center">
-                  Table ID
-                  {sortField === 'tableID' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-gray-800 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('tableName')}
-              >
-                <div className="flex items-center">
-                  Table Name
-                  {sortField === 'tableName' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Table Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Active Status</th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {isLoading ? (
-              <tr>
-                <td colSpan="6" className="text-center py-4">Loading...</td>
+      {/* TABLE SECTION */}
+      <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-gray-200/50 border border-gray-50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer" onClick={() => handleSort('TableName')}>Table Name</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Occupancy Status</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
-            ) : Array.isArray(diningTables) && diningTables.length > 0 ? (
-              diningTables.map((table, idx) => (
-                <tr key={table.tableID} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 text-sm text-gray-800">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-4 text-sm text-gray-800">{table.tableID}</td>
-                  <td className="px-4 py-4 text-sm text-gray-800">{table.tableName}</td>
-                  <td className="px-4 py-4 text-sm text-gray-800">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        table.diningTableStatus === 'Available'
-                          ? 'bg-green-100 text-green-800'
-                          : table.diningTableStatus === 'Occupied'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}
-                    >
-                      {table.diningTableStatus}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-800">
-                    <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        table.status
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {table.status ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-sm text-gray-800">
-                    <div className="flex space-x-2">
-                      {canEdit && (
-                        <button 
-                          onClick={() => navigate(`/dining-tables/edit/${table.tableID}`)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Edit dining table"
-                        >
-                          <FaEdit className="w-4 h-4 text-blue-600" />
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button 
-                          onClick={() => handleToggleStatus(table.tableID, table.status)} // Pass boolean status
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Toggle active status"
-                        >
-                          {table.status ? ( // Change icon based on active status
-                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          )}
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button 
-                          onClick={() => handleDelete(table.tableID)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-red-100 transition-colors"
-                          aria-label="Delete dining table"
-                        >
-                          <FaTrash className="w-4 h-4 text-red-600" />
-                        </button>
-                      )}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {isLoading ? (
+                <tr><td colSpan="4" className="py-20 text-center"><div className="w-12 h-12 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div><p className="mt-4 text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">Loading...</p></td></tr>
+              ) : tables.length > 0 ? (
+                tables.map((table) => (
+                  <tr key={table.tableID} className="hover:bg-gray-50/50 transition-all group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-inner border-2 border-white ring-4 ring-gray-50 group-hover:ring-blue-50 transition-all ${table.status ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
+                            <FaTh />
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-black text-gray-800 text-sm tracking-tight uppercase">{table.tableName}</span>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">ID: {table.tableID}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                        table.diningTableStatus === 'Available' ? 'bg-green-50 text-green-700 border-green-100' : 
+                        table.diningTableStatus === 'Occupied' ? 'bg-red-50 text-red-700 border-red-100' : 'bg-yellow-50 text-yellow-700 border-yellow-100'
+                      }`}>
+                         {table.diningTableStatus}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <button 
+                        onClick={() => handleToggleStatus(table)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border shadow-sm ${
+                          table.status ? 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100' : 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100'
+                        }`}
+                      >
+                        {table.status ? <><FaCheckCircle /> Online</> : <><FaTimesCircle /> Maintenance</>}
+                      </button>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                        {canUpdate && (
+                          <button onClick={() => { setSelectedTable(table); setIsEditModalOpen(true); }} className="p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm"><FaEdit /></button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => handleDelete(table.tableID)} className="p-3 bg-white border border-gray-100 rounded-xl text-red-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm"><FaTrashAlt /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="px-8 py-20 text-center">
+                    <div className="flex flex-col items-center gap-4 text-gray-300">
+                      <FaUtensils size={60} />
+                      <p className="text-xl font-black uppercase tracking-widest text-gray-300">No Dining Nodes Recorded</p>
                     </div>
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="text-center py-4">No dining tables found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Pagination */}
-      {!isLoading && (
+      {/* PAGINATION SECTION */}
+      <div className="mt-8">
         <ProfessionalPagination
-          count={totalDiningTables}
+          count={totalTables}
           page={currentPage}
           rowsPerPage={itemsPerPage}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={setItemsPerPage}
         />
+      </div>
+
+      {/* MODAL SYSTEM */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in text-left">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in">
+            <div className="p-10 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                  <FaUtensils className="text-blue-600" />
+                  {selectedTable ? 'Edit Table' : 'Add Table'}
+                </h3>
+                <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest">
+                  {selectedTable ? `ID: ${selectedTable.tableID}` : 'Table details'}
+                </p>
+              </div>
+              <button onClick={() => setIsEditModalOpen(false)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-xl text-gray-300 hover:text-red-500 transition-all hover:rotate-90"><FaTimesCircle size={28}/></button>
+            </div>
+            <div className="p-10 overflow-y-auto flex-1 custom-scrollbar">
+              <DiningTableAdd 
+                isEdit={!!selectedTable} 
+                tableData={selectedTable} 
+                onClose={() => setIsEditModalOpen(false)} 
+                onSave={() => { fetchTables(); setIsEditModalOpen(false); }}
+                showTitle={false}
+              />
+            </div>
+          </div>
+        </div>
       )}
+
     </div>
   );
-};
-
-export default DiningTableList;
+}

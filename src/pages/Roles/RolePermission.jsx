@@ -1,417 +1,279 @@
-import React, { useState, useEffect, useMemo, useRef, createContext, useContext, useCallback } from 'react';
-import axios from '../../utils/axios';
-import { FaCheckCircle, FaExclamationCircle, FaSearch, FaTimesCircle } from 'react-icons/fa';
+import React, { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-toastify';
+import { useAuth } from '../../context/AuthContext';
+import { 
+  fetchRoles, 
+  fetchAllPermissions, 
+  getRolePermissions, 
+  assignPermissionsToRole, 
+  unassignPermissionsFromRole 
+} from '../../services/userRoleManagementService';
+import { 
+  FaUserShield, 
+  FaShieldAlt, 
+  FaSave, 
+  FaCheckSquare, 
+  FaSquare, 
+  FaLayerGroup, 
+  FaSearch,
+  FaFingerprint,
+  FaChevronRight,
+  FaShieldVirus
+} from 'react-icons/fa';
 
-const PermissionContext = createContext();
+const RolePermission = () => {
+  const { refreshPermissions } = useAuth();
+  const [roles, setRoles] = useState([]);
+  const [selectedRole, setSelectedRole] = useState(null);
+  const [permissions, setPermissions] = useState([]);
+  const [rolePermissions, setRolePermissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [roleSearch, setRoleSearch] = useState('');
+  const [groupedPermissions, setGroupedPermissions] = useState({});
 
-export const usePermissions = () => useContext(PermissionContext);
+  const loadBaseData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [rolesRes, permsRes] = await Promise.all([
+        fetchRoles(1, 1000),
+        fetchAllPermissions()
+      ]);
+      
+      const allRoles = rolesRes.data?.data?.items || [];
+      setRoles(allRoles);
 
-export const PermissionProvider = ({ children, permissions, roles, setError, setSuccessMessage }) => {
-  const [selectedPermissions, setSelectedPermissions] = useState(new Set());
-  const [initialSelectedPermissions, setInitialSelectedPermissions] = useState(new Set());
+      const allPerms = permsRes.data?.data?.items || permsRes.data?.data || [];
+      setPermissions(allPerms);
 
-  const isDirty = useMemo(() => 
-    !areSetsEqual(initialSelectedPermissions, selectedPermissions), 
-    [initialSelectedPermissions, selectedPermissions]
-  );
+      // Group permissions by prefix (e.g., ROLE_VIEW -> Group: ROLE)
+      const groups = allPerms.reduce((acc, perm) => {
+        const groupName = perm.permissionKey.split('_')[0] || 'GENERAL';
+        if (!acc[groupName]) acc[groupName] = [];
+        acc[groupName].push(perm);
+        return acc;
+      }, {});
+      setGroupedPermissions(groups);
 
-  const permissionsByModule = useMemo(() => {
-    return permissions.reduce((acc, permission) => {
-      const { moduleName } = permission;
-      if (!acc[moduleName]) {
-        acc[moduleName] = [];
-      }
-      acc[moduleName].push(permission);
-      return acc;
-    }, {});
-  }, [permissions]);
-
-  const handlePermissionChange = useCallback((permissionId) => {
-    setSelectedPermissions(prev => {
-      const newPermissions = new Set(prev);
-      if (newPermissions.has(permissionId)) {
-        newPermissions.delete(permissionId);
-      } else {
-        newPermissions.add(permissionId);
-      }
-      return newPermissions;
-    });
+    } catch (error) {
+      toast.error('Failed to load security matrix data');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleModuleCheckboxChange = useCallback((moduleName, isChecked) => {
-    const permissionIdsToChange = permissions
-      .filter(p => p.moduleName === moduleName)
-      .map(p => p.id);
-
-    setSelectedPermissions(prev => {
-      const newPermissions = new Set(prev);
-      if (isChecked) {
-        permissionIdsToChange.forEach(id => newPermissions.add(id));
-      } else {
-        permissionIdsToChange.forEach(id => newPermissions.delete(id));
-      }
-      return newPermissions;
-    });
-  }, [permissions]);
-
-  const value = {
-    permissions,
-    roles,
-    permissionsByModule,
-    selectedPermissions,
-    isDirty,
-    handlePermissionChange,
-    handleModuleCheckboxChange,
-    setSelectedPermissions,
-    setInitialSelectedPermissions,
-    initialSelectedPermissions,
-    setError,
-    setSuccessMessage
-  };
-
-  return (
-    <PermissionContext.Provider value={value}>
-      {children}
-    </PermissionContext.Provider>
-  );
-};
-
-const areSetsEqual = (a, b) => {
-  if (a.size !== b.size) return false;
-  for (const value of a) {
-    if (!b.has(value)) return false;
-  }
-  return true;
-};
-
-const useDebounce = (value, delay) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
-};
+    loadBaseData();
+  }, [loadBaseData]);
 
-const RoleList = ({ roles, selectedRole, onSelectRole, searchTerm, setSearchTerm }) => (
-  <div className="w-1/4 bg-white border-r p-4 overflow-y-auto shadow-md">
-    <h2 className="text-2xl font-bold mb-4 text-gray-800">Roles</h2>
-    <div className="relative mb-4">
-      <FaSearch className="absolute top-3 left-3 text-gray-400" />
-      <input
-        type="text"
-        placeholder="Search roles..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="w-full pl-10 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-      />
-    </div>
-    <ul>
-      {roles.map(role => (
-        <li
-          key={role.roleID}
-          onClick={() => onSelectRole(role)}
-          className={`p-3 rounded-lg cursor-pointer mb-2 transition-all duration-200 ease-in-out ${selectedRole?.roleID === role.roleID ? 'bg-blue-600 text-white shadow-lg transform scale-105' : 'hover:bg-gray-200 hover:shadow-sm'}`}
-        >
-          {role.roleName}
-        </li>
-      ))}
-    </ul>
-  </div>
-);
-
-const PermissionGroup = ({ moduleName, permissionsInModule, searchTerm }) => {
-    const {
-        selectedPermissions,
-        handlePermissionChange,
-        handleModuleCheckboxChange,
-    } = usePermissions();
-
-    const moduleCheckboxRef = useRef();
-
-    const filteredPermissions = permissionsInModule.filter(p => p.permissionName.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const modulePermissionIds = useMemo(() => permissionsInModule.map(p => p.id), [permissionsInModule]);
-    const selectedCount = modulePermissionIds.filter(id => selectedPermissions.has(id)).length;
-
-    useEffect(() => {
-        if (moduleCheckboxRef.current) {
-            moduleCheckboxRef.current.indeterminate = selectedCount > 0 && selectedCount < modulePermissionIds.length;
-        }
-    }, [selectedCount, modulePermissionIds.length]);
-
-    if (filteredPermissions.length === 0) {
-        return null;
-    }
-
-    return (
-        <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex items-center border-b pb-2 mb-3">
-                <input
-                    type="checkbox"
-                    ref={moduleCheckboxRef}
-                    checked={selectedCount === modulePermissionIds.length}
-                    onChange={(e) => handleModuleCheckboxChange(moduleName, e.target.checked)}
-                    className="mr-3 h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <h3 className="text-lg font-semibold text-gray-700">{moduleName}</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredPermissions.map(perm => (
-                    <div key={perm.id} className="flex items-center">
-                        <input
-                            type="checkbox"
-                            id={`perm-${perm.id}`}
-                            checked={selectedPermissions.has(perm.id)}
-                            onChange={() => handlePermissionChange(perm.id)}
-                            className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <label htmlFor={`perm-${perm.id}`} className="text-sm text-gray-600">{perm.permissionName}</label>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-const PermissionsEditor = ({ searchTerm }) => {
-  const { permissionsByModule } = usePermissions();
-  const modules = Object.keys(permissionsByModule).sort();
-
-  return (
-    <div className="p-6">
-      {modules.map(moduleName => (
-        <PermissionGroup
-          key={moduleName}
-          moduleName={moduleName}
-          permissionsInModule={permissionsByModule[moduleName]}
-          searchTerm={searchTerm}
-        />
-      ))}
-    </div>
-  );
-};
-
-const ActionBar = ({ isLoading, isDirty, onSave, onCancel, roleName }) => (
-  <div className="sticky top-0 bg-white border-b p-4 z-10 shadow-sm">
-    <div className="flex justify-between items-center">
-      <h2 className="text-2xl font-bold text-gray-800">
-        Editing Permissions for <span className="text-blue-600">{roleName}</span>
-      </h2>
-      <div className="flex items-center">
-        {isDirty && (
-          <>
-            <span className="text-yellow-600 mr-4 flex items-center"><FaExclamationCircle className="mr-1" /> Unsaved Changes</span>
-            <button
-              onClick={onCancel}
-              disabled={isLoading}
-              className="px-6 py-2 border border-gray-300 text-base font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 mr-2"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onSave}
-              disabled={isLoading}
-              className="px-6 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
-            >
-              {isLoading ? 'Saving...' : 'Save Permissions'}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  </div>
-);
-
-const Notification = ({ message, type, onClose }) => {
-    if (!message) return null;
-
-    const baseClasses = "fixed top-5 right-5 p-4 rounded-lg shadow-lg flex items-center text-white z-50";
-    const typeClasses = {
-        success: "bg-green-500",
-        error: "bg-red-500",
-    };
-
-    return (
-        <div className={`${baseClasses} ${typeClasses[type]}`}>
-            {type === 'success' ? <FaCheckCircle className="mr-2" /> : <FaTimesCircle className="mr-2" />}
-            <span>{message}</span>
-            <button onClick={onClose} className="ml-4 text-white font-bold">X</button>
-        </div>
-    );
-};
-
-const RolePermissionPageContent = () => {
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [roleSearchTerm, setRoleSearchTerm] = useState('');
-  const [permissionSearchTerm, setPermissionSearchTerm] = useState('');
-
-  const debouncedRoleSearchTerm = useDebounce(roleSearchTerm, 300);
-  const debouncedPermissionSearchTerm = useDebounce(permissionSearchTerm, 300);
-
-  const {
-    isDirty,
-    selectedPermissions,
-    setSelectedPermissions,
-    setInitialSelectedPermissions,
-    initialSelectedPermissions,
-    roles,
-    setError,
-    setSuccessMessage
-  } = usePermissions();
-
-  useEffect(() => {
-    if (selectedRole) {
-      const fetchRolePermissions = async () => {
-        setLoading(true);
-        setError(null);
-        setSuccessMessage('');
-        try {
-          const res = await axios.get(`/Roles/${selectedRole.roleID}/permissions`);
-          const permissionIds = new Set(res.data.data.map(p => p.permissionID));
-          setSelectedPermissions(permissionIds);
-          setInitialSelectedPermissions(new Set(permissionIds));
-        } catch (err) {
-          if (err.response && err.response.status === 204) {
-            setSelectedPermissions(new Set());
-            setInitialSelectedPermissions(new Set());
-          } else {
-            console.error('Role permissions fetch error:', err);
-            setError('Failed to load role permissions');
-          }
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchRolePermissions();
-    } else {
-      setSelectedPermissions(new Set());
-      setInitialSelectedPermissions(new Set());
-    }
-  }, [selectedRole, setSelectedPermissions, setInitialSelectedPermissions, setError, setSuccessMessage]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const loadRolePermissions = async (role) => {
+    if (!role) return;
     setLoading(true);
-    setError(null);
-    setSuccessMessage('');
     try {
-      await axios.post(`/Roles/${selectedRole.roleID}/assign-permissions`, Array.from(selectedPermissions));
-      setInitialSelectedPermissions(new Set(selectedPermissions));
-      setSuccessMessage('Permissions updated successfully!');
-    } catch (err) {
-      console.error('Permission assignment error:', err);
-      setError('Permission assignment failed');
+      const res = await getRolePermissions(role.roleID || role.roleId);
+      if (res.data.isSuccess) {
+        setRolePermissions(res.data.data.map(rp => rp.permissionId || rp.permissionID || rp.id));
+      } else {
+        setRolePermissions([]);
+      }
+    } catch (error) {
+      setRolePermissions([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = () => {
-    setSelectedPermissions(new Set(initialSelectedPermissions));
+  const handleRoleSelect = (role) => {
+    setSelectedRole(role);
+    loadRolePermissions(role);
   };
 
-  const filteredRoles = roles.filter(role =>
-    role.roleName.toLowerCase().includes(debouncedRoleSearchTerm.toLowerCase())
+  const handleTogglePermission = (permissionId) => {
+    setRolePermissions(prev => 
+      prev.includes(permissionId) 
+        ? prev.filter(id => id !== permissionId)
+        : [...prev, permissionId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    const allIds = permissions.map(p => p.id || p.permissionId || p.permissionID);
+    if (rolePermissions.length === allIds.length) {
+      setRolePermissions([]);
+    } else {
+      setRolePermissions(allIds);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!selectedRole) return;
+    setSaving(true);
+    try {
+      const roleId = selectedRole.roleID || selectedRole.roleId;
+      
+      if (rolePermissions.length > 0) {
+        // The backend's AssignPermissionsToRole replaces all existing permissions with the provided list
+        await assignPermissionsToRole(roleId, rolePermissions);
+      } else {
+        // If we want to clear all permissions, AssignPermissionsToRole fails if the array is empty.
+        // So we must fetch the existing permissions and unassign them explicitly.
+        const currentRes = await getRolePermissions(roleId);
+        const initialPermissions = currentRes.data.data?.map(rp => rp.permissionId || rp.permissionID || rp.id) || [];
+        if (initialPermissions.length > 0) {
+          await unassignPermissionsFromRole(roleId, initialPermissions);
+        }
+      }
+
+      // Refresh the current user's permissions globally in case they modified their own role
+      if (typeof refreshPermissions === 'function') {
+        await refreshPermissions();
+      }
+
+      toast.success(`Security profile for ${selectedRole.roleName} synchronized!`);
+    } catch (error) {
+      toast.error('Synchronization failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const filteredRoles = roles.filter(r => 
+    r.roleName.toLowerCase().includes(roleSearch.toLowerCase())
   );
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <RoleList
-        roles={filteredRoles}
-        selectedRole={selectedRole}
-        onSelectRole={setSelectedRole}
-        searchTerm={roleSearchTerm}
-        setSearchTerm={setRoleSearchTerm}
-      />
-
-      <div className="w-3/4 flex flex-col">
-        {selectedRole ? (
-          <div className="flex flex-col h-full">
-            <ActionBar
-              isLoading={loading}
-              isDirty={isDirty}
-              onSave={handleSubmit}
-              onCancel={handleCancel}
-              roleName={selectedRole.roleName}
+    <div className="flex h-[calc(100vh-100px)] overflow-hidden animate-fade-in gap-6 p-4">
+      
+      {/* SIDEBAR: Role Selection */}
+      <div className="w-80 bg-white rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 flex flex-col overflow-hidden">
+        <div className="p-6 border-b border-gray-50">
+          <h2 className="text-xl font-black text-gray-900 flex items-center gap-2 mb-4">
+            <FaUserShield className="text-indigo-600" /> System Roles
+          </h2>
+          <div className="relative group">
+            <input 
+              type="text" 
+              placeholder="Filter roles..."
+              className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+              value={roleSearch}
+              onChange={(e) => setRoleSearch(e.target.value)}
             />
-             <div className="relative m-4">
-                <FaSearch className="absolute top-3 left-3 text-gray-400" />
-                <input
-                    type="text"
-                    placeholder="Search permissions..."
-                    value={permissionSearchTerm}
-                    onChange={(e) => setPermissionSearchTerm(e.target.value)}
-                    className="w-full pl-10 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+            <FaSearch className="absolute left-3 top-3.5 text-gray-300 group-focus-within:text-indigo-500 transition-colors" />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+          {filteredRoles.map(role => (
+            <div 
+              key={role.roleID}
+              onClick={() => handleRoleSelect(role)}
+              className={`flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all ${
+                selectedRole?.roleID === role.roleID 
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                : 'hover:bg-gray-50 text-gray-600'
+              }`}
+            >
+              <div className="flex flex-col">
+                <span className="font-bold text-sm">{role.roleName}</span>
+                <span className={`text-[10px] font-medium opacity-60 ${selectedRole?.roleID === role.roleID ? 'text-white' : 'text-gray-400'}`}>
+                  UID: {role.roleID}
+                </span>
+              </div>
+              <FaChevronRight className={`text-xs opacity-30 ${selectedRole?.roleID === role.roleID ? 'translate-x-1 opacity-100' : ''}`} />
             </div>
-            <div className="overflow-y-auto flex-grow">
-              {loading ? <div className="text-center p-4">Loading Permissions...</div> : <PermissionsEditor searchTerm={debouncedPermissionSearchTerm} />}
-            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* MAIN: Permission Matrix */}
+      <div className="flex-1 flex flex-col bg-white rounded-[2.5rem] shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+        {!selectedRole ? (
+          <div className="flex flex-col items-center justify-center h-full text-center p-20 opacity-40">
+             <FaShieldVirus size={80} className="text-gray-200 mb-6" />
+             <h3 className="text-2xl font-black text-gray-400">SELECT A ROLE</h3>
+             <p className="text-gray-400 mt-2 max-w-sm">Choose a role from the sidebar to visualize and configure its security permissions matrix.</p>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-gray-500 text-xl">Please select a role to manage its permissions.</div>
-          </div>
+          <>
+            <div className="p-8 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                  <FaFingerprint className="text-indigo-600" />
+                  {selectedRole.roleName} <span className="text-gray-300 text-sm font-medium">/ Security Profile</span>
+                </h2>
+                <p className="text-gray-400 text-xs font-bold mt-1 uppercase tracking-widest">Toggle atomic permissions for this role</p>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2 px-6 py-4 bg-gray-100 text-gray-700 rounded-2xl font-black shadow-sm hover:bg-gray-200 transition-all"
+                >
+                  {rolePermissions.length === permissions.length && permissions.length > 0 ? (
+                    <><FaCheckSquare className="text-indigo-600" /> Deselect All</>
+                  ) : (
+                    <><FaSquare className="text-gray-400" /> Select All</>
+                  )}
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || loading}
+                  className="flex items-center gap-2 px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {saving ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <FaSave />}
+                  Sync Matrix
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center h-full py-20">
+                   <div className="w-12 h-12 border-4 border-gray-100 border-t-indigo-600 rounded-full animate-spin"></div>
+                   <p className="text-gray-400 font-bold mt-4 animate-pulse uppercase tracking-widest text-xs">Decoding Privileges...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {Object.keys(groupedPermissions).map(groupName => (
+                    <div key={groupName} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col group transition-all hover:border-indigo-100">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                          <FaLayerGroup size={18} />
+                        </div>
+                        <h4 className="text-sm font-black text-gray-800 uppercase tracking-widest">{groupName}</h4>
+                      </div>
+
+                      <div className="space-y-2">
+                        {groupedPermissions[groupName].map(perm => {
+                          const pId = perm.id || perm.permissionId || perm.permissionID;
+                          const isChecked = rolePermissions.includes(pId);
+                          return (
+                            <div 
+                              key={pId} 
+                              onClick={() => handleTogglePermission(pId)}
+                              className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${
+                                isChecked 
+                                ? 'bg-indigo-50 border-indigo-100 text-indigo-900 font-bold' 
+                                : 'bg-white border-transparent text-gray-400 hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex-shrink-0">
+                                {isChecked ? <FaCheckSquare className="text-indigo-600 text-lg" /> : <FaSquare className="text-gray-100 text-lg" />}
+                              </div>
+                              <span className="text-xs tracking-tight uppercase font-medium">{perm.permissionName || perm.permissionKey.replace(/_/g, ' ')}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
-  );
-}
-
-const RolePermission = () => {
-  const [roles, setRoles] = useState([]);
-  const [permissions, setPermissions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState('');
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [rolesRes, permissionsRes] = await Promise.all([
-          axios.get('/Roles'),
-          axios.get('/Permission?pageSize=1000')
-        ]);
-        const getItems = (response) => response.data?.data?.items || response.data?.items || response.data;
-        setRoles(getItems(rolesRes) || []);
-        setPermissions(getItems(permissionsRes) || []);
-      } catch (err) {
-        console.error('Data fetch error:', err);
-        setError('Failed to load initial data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  if (loading) {
-    return <div className="flex justify-center items-center h-screen">Loading...</div>;
-  }
-
-  if (error) {
-    return <div className="flex justify-center items-center h-screen text-red-500">Error: {error}</div>;
-  }
-
-  if (permissions.length === 0) {
-    return <div className="flex justify-center items-center h-screen">No permissions found.</div>;
-  }
-
-  return (
-    <>
-      <Notification message={error} type="error" onClose={() => setError(null)} />
-      <Notification message={successMessage} type="success" onClose={() => setSuccessMessage('')} />
-      <PermissionProvider permissions={permissions} roles={roles} setError={setError} setSuccessMessage={setSuccessMessage}>
-        <RolePermissionPageContent />
-      </PermissionProvider>
-    </>
   );
 };
 

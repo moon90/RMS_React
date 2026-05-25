@@ -1,294 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { getProductById } from '../../services/productService';
-import { getAllProductIngredients, createProductIngredient, updateProductIngredient, deleteProductIngredient } from '../../services/productIngredientService';
-import { getAllIngredients } from '../../services/ingredientService';
-import { getAllUnits } from '../../services/unitService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate, useParams } from 'react-router-dom';
-import FormCard from '../../components/FormCard.jsx';
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { getProductIngredientById } from '../../services/productIngredientService';
+import ProductIngredientAdd from './ProductIngredientAdd.jsx';
 import { toast } from 'react-toastify';
-import { FaTrash } from 'react-icons/fa';
-
-const ValidationToast = ({ title, messages }) => (
-  <div>
-    <strong>{title}</strong>
-    <ul style={{ whiteSpace: 'pre-wrap', textAlign: 'left', paddingLeft: '20px' }}>
-      {messages.map((msg, index) => (
-        <li key={index}>{msg}</li>
-      ))}
-    </ul>
-  </div>
-);
+import { FaFlask, FaArrowLeft } from 'react-icons/fa';
 
 const ProductIngredientEdit = () => {
-  const { id } = useParams(); // This is the Product ID
-  const [productName, setProductName] = useState('');
-  const [ingredients, setIngredients] = useState([]);
-  const [ingredientsToDelete, setIngredientsToDelete] = useState([]);
-  const [allIngredients, setAllIngredients] = useState([]);
-  const [allUnits, setAllUnits] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  // const [errors, setErrors] = useState({});
-  const { user } = useAuth();
+  const { id } = useParams();
   const navigate = useNavigate();
-
-  const canEdit = user?.permissions?.includes('PRODUCT_INGREDIENT_UPDATE');
+  const [data, setData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!canEdit) {
-      navigate('/access-denied');
-      return;
-    }
-
-    const fetchAndSetData = async () => {
-      setLoading(true);
+    const fetchComponent = async () => {
       try {
-        const [productRes, productIngredientsRes, ingredientsRes, unitsRes] = await Promise.all([
-          getProductById(id),
-          getAllProductIngredients({ productID: id, pageSize: 1000 }),
-          getAllIngredients({ pageNumber: 1, pageSize: 1000, status: true }),
-          getAllUnits({ pageNumber: 1, pageSize: 1000, status: true }),
-        ]);
-
-        if (productRes.data.isSuccess) {
-          setProductName(productRes.data.data.productName);
+        const response = await getProductIngredientById(id);
+        if (response.data.isSuccess) {
+          setData(response.data.data);
         } else {
-          toast.error('Failed to load product details.');
+          toast.error('Failed to retrieve formula protocol.');
+          navigate('/product-ingredients/list');
         }
-
-        if (productIngredientsRes.data.isSuccess) {
-          setIngredients(productIngredientsRes.data.data.items.map(item => ({ ...item, availableQuantity: 0 })));
-        } else {
-          toast.error('Failed to load product ingredients.');
-        }
-
-        if (ingredientsRes.data.isSuccess) {
-          setAllIngredients(ingredientsRes.data.data.items);
-        }
-
-        if (unitsRes.data.isSuccess) {
-          setAllUnits(unitsRes.data.data.items);
-        }
-
       } catch (error) {
-        toast.error('An error occurred while loading data.');
-        console.error(error);
+        toast.error('Critical failure: Protocol retrieval interrupted.');
+        navigate('/product-ingredients/list');
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
+    fetchComponent();
+  }, [id, navigate]);
 
-    fetchAndSetData();
-  }, [id, canEdit, navigate]);
-
-  const handleIngredientChange = (index, event) => {
-    const { name, value } = event.target;
-    const newIngredients = [...ingredients];
-    newIngredients[index][name] = value;
-
-    if (name === 'ingredientID') {
-      const selectedIngredient = allIngredients.find(ing => ing.ingredientID === parseInt(value));
-      if (selectedIngredient) {
-        newIngredients[index].availableQuantity = selectedIngredient.quantityInStock;
-      }
-    }
-
-    if (name === 'quantity') {
-        const available = newIngredients[index].availableQuantity;
-        if (parseFloat(value) > available) {
-            toast.error(`Only ${available} in stock for this ingredient.`);
-        }
-    }
-
-    setIngredients(newIngredients);
-  };
-
-  const addIngredient = () => {
-    setIngredients([...ingredients, { productIngredientID: 0, ingredientID: '', quantity: '', unitID: '', remarks: '', status: true, availableQuantity: 0 }]);
-  };
-
-  const removeIngredient = (index) => {
-    const ingredientToRemove = ingredients[index];
-    if (ingredientToRemove.productIngredientID !== 0) {
-        setIngredientsToDelete([...ingredientsToDelete, ingredientToRemove.productIngredientID]);
-    }
-    const newIngredients = ingredients.filter((_, i) => i !== index);
-    setIngredients(newIngredients);
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // setErrors({});
-    setIsSubmitting(true);
-
-    try {
-      // Delete ingredients
-      for (const ingredientId of ingredientsToDelete) {
-        await deleteProductIngredient(ingredientId);
-      }
-
-      // Add or Update ingredients
-      for (const ingredient of ingredients) {
-        if (!ingredient.ingredientID || !ingredient.quantity || !ingredient.unitID) {
-          toast.error('Please fill all fields for each ingredient.');
-          setIsSubmitting(false);
-          return;
-        }
-        if (parseFloat(ingredient.quantity) > ingredient.availableQuantity) {
-            toast.error(`Not enough stock for ${allIngredients.find(i => i.ingredientID === parseInt(ingredient.ingredientID)).name}.`);
-            setIsSubmitting(false);
-            return;
-        }
-
-        const productIngredientData = {
-          productID: parseInt(id),
-          ingredientID: parseInt(ingredient.ingredientID),
-          quantity: parseFloat(ingredient.quantity),
-          unitID: parseInt(ingredient.unitID),
-          remarks: ingredient.remarks,
-          status: ingredient.status,
-        };
-
-        if (ingredient.productIngredientID && ingredient.productIngredientID !== 0) {
-          await updateProductIngredient(ingredient.productIngredientID, productIngredientData);
-        } else {
-          await createProductIngredient(productIngredientData);
-        }
-      }
-
-      toast.success('Product ingredients updated successfully!');
-      navigate('/product-ingredients/list');
-    } catch (err) {
-      if (err.response && err.response.data && err.response.data.details) {
-        const newErrors = {};
-        const errorMessages = err.response.data.details.map(error => {
-          newErrors[error.propertyName.toLowerCase()] = error.errorMessage;
-          return `- ${error.errorMessage}`;
-        });
-        // setErrors(newErrors);
-        toast.error(<ValidationToast title={err.response.data.message} messages={errorMessages} />);
-      } else {
-        toast.error(err.response?.data?.message || err.message || 'An error occurred.');
-      }
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  if (loading) {
-    return <div className="p-3 max-w-4xl mx-auto">Loading...</div>;
-  }
-
-  if (!canEdit) {
-    return null;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <div className="w-16 h-16 border-4 border-purple-50 border-t-purple-600 rounded-full animate-spin"></div>
+        <p className="mt-6 text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse text-left">Retrieving Protocol...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="p-3 max-w-4xl mx-auto">
-      <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Edit Product Ingredients for {productName}</h2>
+    <div className="container mx-auto p-6 max-w-5xl text-left">
+      <div className="mb-8 flex items-center justify-between">
+        <button 
+          onClick={() => navigate('/product-ingredients/list')}
+          className="flex items-center gap-2 px-6 py-3 bg-white text-gray-500 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:shadow-md hover:text-purple-600 transition-all border border-gray-50"
+        >
+          <FaArrowLeft /> Back to Formula Registry
+        </button>
+        <div className="flex items-center gap-3">
+          <FaFlask className="text-purple-200 text-2xl" />
+          <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Component ID: PI-{id}</span>
+        </div>
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {ingredients.map((ingredient, index) => (
-            <div key={index} className="grid grid-cols-1 md:grid-cols-7 gap-6 border-b pb-4">
-              <div className="md:col-span-2">
-                <label htmlFor={`ingredientID-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Ingredient</label>
-                <select
-                  id={`ingredientID-${index}`}
-                  name="ingredientID"
-                  value={ingredient.ingredientID}
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="">Select Ingredient</option>
-                  {allIngredients.map(ing => (
-                    <option key={ing.ingredientID} value={ing.ingredientID}>{ing.name} ({ing.quantityInStock})</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor={`quantity-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                <input
-                  type="number"
-                  id={`quantity-${index}`}
-                  name="quantity"
-                  value={ingredient.quantity}
-                  placeholder="Qty"
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  required
-                  step="0.01"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label htmlFor={`unitID-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                <select
-                  id={`unitID-${index}`}
-                  name="unitID"
-                  value={ingredient.unitID}
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  <option value="">Unit</option>
-                  {allUnits.map(unit => (
-                    <option key={unit.id} value={unit.id}>{unit.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="md:col-span-2">
-                <label htmlFor={`remarks-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
-                <input
-                  type="text"
-                  id={`remarks-${index}`}
-                  name="remarks"
-                  value={ingredient.remarks}
-                  placeholder="Remarks"
-                  onChange={(e) => handleIngredientChange(index, e)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => removeIngredient(index)}
-                  className="p-2 rounded-md bg-red-600 text-white hover:bg-red-700 transition"
-                >
-                  <FaTrash />
-                </button>
-              </div>
-            </div>
-          ))}
-
-          <button
-            type="button"
-            onClick={addIngredient}
-            className="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 transition"
-          >
-            Add Ingredient
-          </button>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/product-ingredients/list')}
-              className="px-5 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
-              disabled={isSubmitting}
-            >
-              Update Product Ingredients
-            </button>
-          </div>
-        </form>
-      </FormCard>
+      <ProductIngredientAdd 
+        isEdit={true} 
+        data={data} 
+        onSave={() => navigate('/product-ingredients/list')}
+        onClose={() => navigate('/product-ingredients/list')}
+      />
     </div>
   );
 };

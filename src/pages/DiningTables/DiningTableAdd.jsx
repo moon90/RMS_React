@@ -1,123 +1,234 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { createDiningTable } from '../../services/diningTableService';
+import React, { useState, useEffect } from 'react';
+import { createDiningTable, updateDiningTable } from '../../services/diningTableService';
+import { hasPermission } from '../../utils/permissionUtils';
+import FormCard from '../../components/FormCard.jsx';
 import { toast } from 'react-toastify';
-import { useAuth } from '../../context/AuthContext';
-import FormCard from '../../components/FormCard';
+import { 
+  FaUtensils, 
+  FaSave, 
+  FaUndo, 
+  FaCheckCircle, 
+  FaTimesCircle,
+  FaTh,
+  FaUsers
+} from 'react-icons/fa';
 
-const DiningTableAdd = () => {
-  const navigate = useNavigate();
+const DiningTableAdd = ({ isEdit = false, tableData = null, onClose, onSave, showTitle = true }) => {
   const [formData, setFormData] = useState({
     tableName: '',
-    status: true, // Default to available
-    diningTableStatus: 'Available', // Initialize with a default enum value
+    status: true,
+    diningTableStatus: 'Available'
   });
-  const { user } = useAuth();
-  const canCreate = user?.permissions?.includes('DINING_TABLE_CREATE');
+  
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value,
-    });
+  const canCreate = hasPermission('DINING_TABLE_CREATE');
+  const canUpdate = hasPermission('DINING_TABLE_UPDATE');
+
+  useEffect(() => {
+    if (isEdit && tableData) {
+      setFormData({
+        tableID: tableData.tableID,
+        tableName: tableData.tableName || '',
+        status: tableData.status ?? true,
+        diningTableStatus: tableData.diningTableStatus || 'Available'
+      });
+    }
+  }, [isEdit, tableData]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-    if (!formData.tableName.trim()) {
-      newErrors.tableName = "Table Name is required.";
+  const handleReset = () => {
+    setErrors({});
+    if (isEdit && tableData) {
+      setFormData({
+        tableID: tableData.tableID,
+        tableName: tableData.tableName || '',
+        status: tableData.status ?? true,
+        diningTableStatus: tableData.diningTableStatus || 'Available'
+      });
+    } else {
+      setFormData({
+        tableName: '',
+        status: true,
+        diningTableStatus: 'Available'
+      });
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) {
-      toast.error("Please correct the form errors.");
+    setErrors({});
+    setIsLoading(true);
+
+    if (isEdit && !canUpdate) {
+      toast.error('Access Denied: Cannot edit.');
+      setIsLoading(false);
+      return;
+    }
+    if (!isEdit && !canCreate) {
+      toast.error('Access Denied: Cannot add.');
+      setIsLoading(false);
       return;
     }
 
     try {
-      await createDiningTable(formData);
-      toast.success("Dining table added successfully!");
-      navigate('/dining-tables/list');
+      let response;
+      if (isEdit) {
+        // Assuming updateDiningTable exists in service
+        response = await updateDiningTable(formData.tableID, formData);
+      } else {
+        response = await createDiningTable(formData);
+      }
+
+      if (response.data.isSuccess || response.data.succeeded) {
+        toast.success(isEdit ? 'Table updated.' : 'Table added.');
+        if (onSave) onSave();
+        if (onClose) onClose();
+      } else {
+        const errorResponse = response.data;
+        if (errorResponse && errorResponse.details && errorResponse.details.length > 0) {
+          const apiErrors = {};
+          errorResponse.details.forEach(err => {
+            apiErrors[err.propertyName.toLowerCase()] = err.errorMessage;
+          });
+          setErrors(apiErrors);
+          toast.error('Error: Invalid data.');
+        } else {
+          toast.error(errorResponse?.message || 'Server error.');
+        }
+      }
     } catch (error) {
-      toast.error("Failed to add dining table.");
-      console.error("Error adding dining table:", error);
+      toast.error('Error: Could not load tables.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (!canCreate) {
-    return null; // Or a loading spinner/message while redirecting
-  }
-
   return (
-    <div className="p-3 max-w-4xl mx-auto">
+    <div className="p-3 max-w-4xl mx-auto text-left">
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New Dining Table</h2>
+        {showTitle && (
+          <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <FaUtensils className="text-white text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+                {isEdit ? 'Edit Table' : 'Add Table'}
+              </h2>
+              <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">Dining Table Management</p>
+            </div>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 gap-6">
-            <div>
-              <label htmlFor="tableName" className="block text-sm font-medium text-gray-800 mb-1">Table Name</label>
-              <input
-                type="text"
-                id="tableName"
-                name="tableName"
-                value={formData.tableName}
-                placeholder="Enter table name"
-                onChange={handleChange}
-                required
-                className={`w-full px-4 py-2 border ${errors.tableName ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.tableName && <p className="text-red-500 text-xs mt-1">{errors.tableName}</p>}
+        <form onSubmit={handleSubmit} className="space-y-10">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Table Name */}
+            <div className="relative group md:col-span-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Table Name
+              </label>
+              <div className="relative">
+                <FaTh className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                <input
+                  type="text"
+                  name="tableName"
+                  value={formData.tableName}
+                  onChange={handleInputChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 rounded-2xl outline-none transition-all font-bold text-gray-700 ${
+                    errors.tablename || errors.tableName ? 'border-red-100 focus:border-red-400' : 'border-transparent focus:border-blue-100 focus:bg-white'
+                  }`}
+                  placeholder="e.g. Table 01 - Main Floor"
+                  required
+                />
+              </div>
+              {(errors.tablename || errors.tableName) && (
+                <p className="text-red-500 text-[10px] font-bold mt-2 ml-1 uppercase tracking-widest">{errors.tablename || errors.tableName}</p>
+              )}
             </div>
-            <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-800 mb-1">Active Status</label>
-              <select
-                id="status"
-                name="status"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value === 'true' })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
+
+            {/* Occupancy Status */}
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Occupancy Status
+              </label>
+              <div className="relative">
+                <FaUsers className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors pointer-events-none" />
+                <select
+                  name="diningTableStatus"
+                  value={formData.diningTableStatus}
+                  onChange={handleInputChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 rounded-2xl outline-none transition-all font-bold text-gray-700 appearance-none cursor-pointer ${
+                    errors.diningtablestatus || errors.diningTableStatus ? 'border-red-100 focus:border-red-400' : 'border-transparent focus:border-blue-100 focus:bg-white'
+                  }`}
+                >
+                  <option value="Available">Available</option>
+                  <option value="Occupied">Occupied</option>
+                  <option value="Reserved">Reserved</option>
+                </select>
+              </div>
+              {(errors.diningtablestatus || errors.diningTableStatus) && (
+                <p className="text-red-500 text-[10px] font-bold mt-2 ml-1 uppercase tracking-widest">{errors.diningtablestatus || errors.diningTableStatus}</p>
+              )}
             </div>
-            <div>
-              <label htmlFor="diningTableStatus" className="block text-sm font-medium text-gray-800 mb-1">Dining Table Status</label>
-              <select
-                id="diningTableStatus"
-                name="diningTableStatus"
-                value={formData.diningTableStatus}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="Available">Available</option>
-                <option value="Occupied">Occupied</option>
-                <option value="Reserved">Reserved</option>
-              </select>
+
+            {/* Operational Status */}
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Status
+              </label>
+              <div className={`flex gap-4 p-1 bg-gray-50 rounded-2xl border-2 transition-all ${
+                errors.status ? 'border-red-100 focus-within:border-red-400' : 'border-transparent focus-within:border-blue-100 focus-within:bg-white'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, status: true }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                    formData.status ? 'bg-white text-green-600 shadow-sm border border-green-100' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <FaCheckCircle className={formData.status ? 'text-green-500' : 'text-gray-300'} /> Online
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, status: false }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                    !formData.status ? 'bg-white text-red-600 shadow-sm border border-red-100' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <FaTimesCircle className={!formData.status ? 'text-red-500' : 'text-gray-300'} /> Maintenance
+                </button>
+              </div>
+              {errors.status && (
+                <p className="text-red-500 text-[10px] font-bold mt-2 ml-1 uppercase tracking-widest">{errors.status}</p>
+              )}
             </div>
           </div>
 
-          {/* Buttons */}
-          <div className="flex justify-end gap-3 pt-4">
+          {/* ACTIONS */}
+          <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-50">
             <button
               type="button"
-              onClick={() => navigate('/dining-tables/list')}
-              className="px-5 py-2 rounded-md bg-gray-100 text-gray-800 hover:bg-[#E0E0E0] border border-gray-300 transition"
+              onClick={() => { handleReset(); if(onClose) onClose(); }}
+              className="px-8 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 hover:text-gray-600 transition-all flex items-center gap-2"
             >
-              Cancel
+              <FaUndo /> Reset
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
+              disabled={isLoading}
+              className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              Add Table
+              <FaSave /> {isLoading ? 'Saving...' : isEdit ? 'Save Changes' : 'Add Table'}
             </button>
           </div>
         </form>

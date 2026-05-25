@@ -23,12 +23,12 @@ export default function Inventory() {
 
   return (
     <div className="p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-semibold">Inventory Page</h2>
+      <h2 className="text-2xl font-semibold">Inventory</h2>
       {canViewInventory ? (
         <>
           <p>You have permission to view inventory. This is the content for the Inventory page.</p>
           <div className="mt-4">
-            <h3 className="text-xl font-semibold">Real-time Inventory Updates:</h3>
+            <h3 className="text-xl font-semibold">Stock Updates:</h3>
             {!isConnected && <p className="text-yellow-600">Connecting to real-time updates...</p>}
             {error && <p className="text-red-500">Connection Error: {error.message}</p>}
             {isConnected && inventoryUpdates.length === 0 && <p>Waiting for inventory updates...</p>}

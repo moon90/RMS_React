@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { validateImage } from '../utils/imageValidation';
-import { uploadProfilePicture, getUserById, updateUser } from '../services/userService'; // Assuming these exist or will be created
+import { uploadProfilePicture, getUserById, updateUser } from '../services/userService';
+import { FaCamera, FaTrashAlt, FaCloudUploadAlt, FaUserCircle } from 'react-icons/fa';
 
-const UserProfilePictureUpload = ({ userId, currentImageUrl, onUploadSuccess, onRemoveSuccess }) => {
+const UserProfilePictureUpload = ({ userId, currentImageUrl, onUploadSuccess, onRemoveSuccess, onFileSelect }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(currentImageUrl);
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     setPreviewUrl(currentImageUrl);
@@ -18,28 +20,28 @@ const UserProfilePictureUpload = ({ userId, currentImageUrl, onUploadSuccess, on
       const validationResult = validateImage(file);
       if (!validationResult.isValid) {
         toast.error(validationResult.message);
-        e.target.value = null; // Clear the file input
+        e.target.value = null;
         setSelectedFile(null);
-        setPreviewUrl(currentImageUrl); // Revert preview to current image
+        setPreviewUrl(currentImageUrl);
         return;
       }
       setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setSelectedFile(null);
-      setPreviewUrl(currentImageUrl); // Revert preview to current image
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      
+      // If we are in "Add Mode" (no userId), pass the file back to parent
+      if (!userId && onFileSelect) {
+        onFileSelect(file);
+      }
     }
   };
 
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
+  };
+
   const handleUpload = async () => {
-    if (!selectedFile) {
-      toast.info('Please select a file to upload.');
-      return;
-    }
-    if (!userId) {
-      toast.error('User ID is required to upload profile picture.');
-      return;
-    }
+    if (!selectedFile || !userId) return;
 
     setLoading(true);
     try {
@@ -48,18 +50,15 @@ const UserProfilePictureUpload = ({ userId, currentImageUrl, onUploadSuccess, on
 
       const response = await uploadProfilePicture(userId, formData);
       if (response.data.isSuccess) {
-        toast.success('Profile picture uploaded successfully!');
-        setPreviewUrl(response.data.data); // Update preview with new URL from backend
-        setSelectedFile(null); // Clear selected file
-        if (onUploadSuccess) {
-          onUploadSuccess(response.data.data); // Pass new URL to parent
-        }
+        toast.success('Biometric data synchronized.');
+        setPreviewUrl(response.data.data);
+        setSelectedFile(null);
+        if (onUploadSuccess) onUploadSuccess(response.data.data);
       } else {
-        toast.error(response.data.message || 'Failed to upload profile picture.');
+        toast.error(response.data.message || 'Synchronization failed.');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || 'An error occurred during upload.');
-      console.error('Upload error:', error);
+      toast.error('An error occurred during network transmission.');
     } finally {
       setLoading(false);
     }
@@ -67,81 +66,94 @@ const UserProfilePictureUpload = ({ userId, currentImageUrl, onUploadSuccess, on
 
   const handleRemove = async () => {
     if (!userId) {
-      toast.error('User ID is required to remove profile picture.');
+      // If adding, just clear the selection
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      if (onFileSelect) onFileSelect(null);
       return;
     }
 
     setLoading(true);
     try {
-      // To remove, we can send an update request with an empty/null profilePictureUrl
-      // This assumes your backend's UpdateUser endpoint can handle clearing the URL
-      // Alternatively, you might have a dedicated DELETE endpoint for profile pictures.
-      // For now, let's assume UpdateUser can handle it by sending an empty string for profilePictureUrl
-      
-      // First, get the current user data to ensure we only update the profile picture URL
       const userResponse = await getUserById(userId);
-      if (!userResponse.data.isSuccess || !userResponse.data.data) {
-        toast.error('Failed to fetch user data for removal.');
-        setLoading(false);
-        return;
-      }
-      const userData = userResponse.data.data;
-
-      const updatePayload = { ...userData, profilePictureUrl: '' }; // Clear the URL
-      const response = await updateUser(userId, updatePayload);
-
-      if (response.data.isSuccess) {
-        toast.success('Profile picture removed successfully!');
-        setPreviewUrl(null);
-        setSelectedFile(null);
-        if (onRemoveSuccess) {
-          onRemoveSuccess();
+      if (userResponse.data.isSuccess) {
+        const updatePayload = { ...userResponse.data.data, profilePictureUrl: '' };
+        const response = await updateUser(userId, updatePayload);
+        if (response.data.isSuccess) {
+          toast.success('Biometric data purged.');
+          setPreviewUrl(null);
+          setSelectedFile(null);
+          if (onRemoveSuccess) onRemoveSuccess();
         }
-      } else {
-        toast.error(response.data.message || 'Failed to remove profile picture.');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || error.message || 'An error occurred during removal.');
-      console.error('Remove error:', error);
+      toast.error('Purge failed.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <label htmlFor="profilePictureInput" className="block text-sm font-medium text-gray-700 mb-1">Profile Picture</label>
-      <input
-        type="file"
-        id="profilePictureInput"
-        accept="image/*"
-        onChange={handleFileChange}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-      />
+    <div className="flex flex-col items-center group">
+      <div className="relative mb-6">
+        <div 
+          className="w-40 h-40 rounded-[2.5rem] overflow-hidden border-4 border-white shadow-2xl ring-8 ring-gray-50 group-hover:ring-blue-50 transition-all cursor-pointer relative bg-gray-50 flex items-center justify-center"
+          onClick={triggerFileInput}
+        >
+          {previewUrl ? (
+            <img src={previewUrl} alt="Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+          ) : (
+            <div className="flex flex-col items-center text-gray-300">
+              <FaUserCircle size={60} />
+              <span className="text-[10px] font-black uppercase tracking-widest mt-2">No Image</span>
+            </div>
+          )}
+          
+          {/* Overlay on Hover */}
+          <div className="absolute inset-0 bg-blue-600/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white">
+            <FaCamera size={30} />
+            <span className="text-[10px] font-black uppercase tracking-widest mt-2">Update Photo</span>
+          </div>
+        </div>
 
-      <div className="mt-2 flex items-center space-x-4">
-        <img src={previewUrl || '/images/default-profile.png'} alt="Profile Preview" className="h-32 w-32 object-cover rounded-full shadow-md" />
-        {previewUrl && (
-          <button
-            type="button"
-            onClick={handleRemove}
-            disabled={loading}
-            className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition duration-200"
-          >
-            {loading ? 'Removing...' : 'Remove Picture'}
-          </button>
+        {/* Floating Actions */}
+        {(previewUrl || selectedFile) && (
+          <div className="absolute -bottom-2 -right-2 flex gap-2">
+            <button
+              type="button"
+              onClick={handleRemove}
+              className="w-10 h-10 bg-white text-red-500 rounded-2xl shadow-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all border border-gray-100"
+              title="Remove Image"
+            >
+              <FaTrashAlt size={14} />
+            </button>
+          </div>
         )}
       </div>
 
-      {selectedFile && !loading && (
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+
+      {/* Immediate Upload Button (Only for Edit mode) */}
+      {selectedFile && userId && (
         <button
           type="button"
           onClick={handleUpload}
           disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-200"
+          className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all animate-bounce-subtle"
         >
-          {loading ? 'Uploading...' : 'Upload New Picture'}
+          {loading ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <FaCloudUploadAlt />}
+          Sync Photo
         </button>
+      )}
+
+      {!userId && selectedFile && (
+        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest animate-pulse">Photo Buffered for Enrollment</p>
       )}
     </div>
   );

@@ -16,6 +16,11 @@ const ProtectedRoute = ({ children }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // POS Page should not be wrapped in MainLayout (Sidebar/Header)
+  if (location.pathname === '/pos') {
+    return children;
+  }
+
   return <MainLayout>{children}</MainLayout>;
 };
 

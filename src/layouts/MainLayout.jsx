@@ -9,8 +9,8 @@ import { useLayout } from '../context/LayoutContext';
 
 export default function MainLayout({ children }) {
   const { collapsed, setCollapsed } = useLayout();
-  const sidebarWidth = collapsed ? 'w-20' : 'w-64';
-  const contentPadding = collapsed ? 'pl-20' : 'pl-64';
+  const sidebarWidth = collapsed ? 'w-20' : 'w-72';
+  const contentPadding = collapsed ? 'pl-20' : 'pl-72';
   // eslint-disable-next-line no-unused-vars
   const user = JSON.parse(localStorage.getItem('user'));
   // eslint-disable-next-line no-unused-vars

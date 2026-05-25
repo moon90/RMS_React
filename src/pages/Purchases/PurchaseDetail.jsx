@@ -13,10 +13,10 @@ const PurchaseDetail = () => {
         const fetchPurchase = async () => {
             try {
                 const response = await purchaseService.getPurchaseById(id);
-                if (response.isSuccess) {
-                    setPurchase(response.data);
+                if (response.data && response.data.isSuccess) {
+                    setPurchase(response.data.data);
                 } else {
-                    setError(response.message);
+                    setError(response.data?.message || 'Purchase not found.');
                 }
             } catch (err) {
                 setError('Failed to fetch purchase details.');

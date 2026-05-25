@@ -1,5 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // Lazy-loaded page components
 const LoginPage = lazy(() => import('./pages/Login/LoginPage'));
@@ -34,8 +36,8 @@ const CustomerEdit = lazy(() => import('./pages/Customers/CustomerEdit'));
 const StaffList = lazy(() => import('./pages/Staff/StaffList'));
 const StaffAdd = lazy(() => import('./pages/Staff/StaffAdd'));
 const StaffEdit = lazy(() => import('./pages/Staff/StaffEdit'));
-const MenuSetup = lazy(() => import('./pages/Roles/MenuSetup'));
 const AuditLogs = lazy(() => import('./pages/AuditLogs'));
+const SetupWizard = lazy(() => import('./pages/Setup/SetupWizard'));
 const InventoryDashboard = lazy(() => import('./pages/InventoryDashboard'));
 const InventoryList = lazy(() => import('./pages/Inventory/InventoryList'));
 const InventoryAdd = lazy(() => import('./pages/Inventory/InventoryAdd'));
@@ -47,7 +49,6 @@ const StockTransactionAdd = lazy(() => import('./pages/StockTransactions/StockTr
 const StockTransactionEdit = lazy(() => import('./pages/StockTransactions/StockTransactionEdit'));
 const IngredientList = lazy(() => import('./pages/Ingredients/IngredientList'));
 const IngredientAdd = lazy(() => import('./pages/Ingredients/IngredientAdd'));
-const IngredientEdit = lazy(() => import('./pages/Ingredients/IngredientEdit'));
 const ProductIngredientList = lazy(() => import('./pages/ProductIngredients/ProductIngredientList'));
 const ProductIngredientAdd = lazy(() => import('./pages/ProductIngredients/ProductIngredientAdd'));
 const ProductIngredientEdit = lazy(() => import('./pages/ProductIngredients/ProductIngredientEdit'));
@@ -70,19 +71,83 @@ const SalesAdd = lazy(() => import('./pages/Sales/SalesAdd'));
 const SalesEdit = lazy(() => import('./pages/Sales/SalesEdit'));
 const SaleDetail = lazy(() => import('./pages/Sales/SaleDetail'));
 const SalesList = lazy(() => import('./pages/Sales/SalesList'));
+const BranchList = lazy(() => import('./pages/Branches/BranchList'));
+const BranchAdd = lazy(() => import('./pages/Branches/BranchAdd'));
+const StockTransferList = lazy(() => import('./pages/StockTransfers/StockTransferList'));
+const StockTransferAdd = lazy(() => import('./pages/StockTransfers/StockTransferAdd'));
+const InventoryAuditList = lazy(() => import('./pages/InventoryAudits/InventoryAuditList'));
+const InventoryAuditAdd = lazy(() => import('./pages/InventoryAudits/InventoryAuditAdd'));
+const InventoryAuditDetail = lazy(() => import('./pages/InventoryAudits/InventoryAuditDetail'));
+const PayrollList = lazy(() => import('./pages/Payroll/PayrollList'));
 const LowStockAlerts = lazy(() => import('./pages/LowStockAlerts/LowStockAlerts'));
 const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'));
 const RoleMenus = lazy(() => import('./pages/Roles/RoleMenus'));
-const PermissionSetup = lazy(() => import('./pages/Roles/PermissionSetup'));
 const RolePermission = lazy(() => import('./pages/Roles/RolePermission'));
 const AccessDenied = lazy(() => import('./pages/AccessDenied'));
 const TokenDisplay = lazy(() => import('./pages/TokenDisplay'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 import { AuthProvider } from './context/AuthContext';
 import { LayoutProvider } from './context/LayoutContext';
-import ErrorBoundary from './components/ErrorBoundary'; // Import the ErrorBoundary
+import ErrorBoundary from './components/ErrorBoundary';
+import { systemSettingService } from './services/systemSettingService';
+import { syncOfflineData } from './services/offlineService';
+import { useEffect } from 'react';
 
 function App() {
+  useEffect(() => {
+    const applyBranding = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const data = await systemSettingService.getAllSettings();
+        if (data && (data.isSuccess || data.IsSuccess)) {
+          const settings = data.data || data.Data || [];
+          
+          // Apply Page Title
+          const pageTitle = settings.find(s => (s.settingKey || s.SettingKey) === 'PageTitle');
+          const titleValue = pageTitle?.settingValue || pageTitle?.SettingValue;
+          if (titleValue) document.title = titleValue;
+
+          // Apply Favicon (Forced Update)
+          const favicon = settings.find(s => (s.settingKey || s.SettingKey) === 'Favicon');
+          const faviconValue = favicon?.settingValue || favicon?.SettingValue;
+          if (faviconValue) {
+            const existingLinks = document.querySelectorAll("link[rel*='icon']");
+            existingLinks.forEach(link => link.parentNode.removeChild(link));
+
+            const link = document.createElement('link');
+            link.type = 'image/x-icon';
+            link.rel = 'shortcut icon';
+            link.href = faviconValue.startsWith('data:') ? faviconValue : `${faviconValue}?t=${new Date().getTime()}`;
+            document.head.appendChild(link);
+          }
+
+          // Apply Restaurant Logo
+          const logo = settings.find(s => (s.settingKey || s.SettingKey) === 'RestaurantLogo');
+          const logoValue = logo?.settingValue || logo?.SettingValue;
+          if (logoValue) {
+            const logoElements = document.querySelectorAll('#app-logo');
+            logoElements.forEach(el => el.src = logoValue);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load branding settings:", error);
+      }
+    };
+
+    applyBranding();
+
+    // Listen for network online event to sync offline POS orders
+    window.addEventListener('online', syncOfflineData);
+
+    return () => {
+      window.removeEventListener('online', syncOfflineData);
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <LayoutProvider>
@@ -91,16 +156,17 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/login" />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/setup" element={<SetupWizard />} />
             <Route path="/token-display" element={<TokenDisplay />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/users/add" element={<ProtectedRoute><UserAdd /></ProtectedRoute>} />
             <Route path="/users/list" element={<ProtectedRoute><UserList /></ProtectedRoute>} />
             <Route path="/roles/access_role" element={<ProtectedRoute><UserAccessRole /></ProtectedRoute>} />
             <Route path="/roles/add" element={<ProtectedRoute><RoleAdd /></ProtectedRoute>} />
             <Route path="/roles/list" element={<ProtectedRoute><RoleList /></ProtectedRoute>} />
             
-            <Route path="/roles/menu_setup" element={<ProtectedRoute><MenuSetup /></ProtectedRoute>} />
-            <Route path="/roles/permission_setup" element={<ProtectedRoute><PermissionSetup /></ProtectedRoute>} />
             <Route path="/roles/role_permissions" element={<ProtectedRoute><RolePermission /></ProtectedRoute>} />
             <Route path="/roles/menu_assignments" element={<ProtectedRoute><RoleMenus /></ProtectedRoute>} />
             <Route path="/permissions/add" element={<ProtectedRoute><PermissionAdd /></ProtectedRoute>} />
@@ -127,6 +193,7 @@ function App() {
             <Route path="/customers/add" element={<ProtectedRoute><CustomerAdd /></ProtectedRoute>} />
             <Route path="/customers/edit/:id" element={<ProtectedRoute><CustomerEdit /></ProtectedRoute>} />
 
+            <Route path="/staff" element={<Navigate to="/staff/list" replace />} />
             <Route path="/staff/list" element={<ProtectedRoute><StaffList /></ProtectedRoute>} />
             <Route path="/staff/add" element={<ProtectedRoute><StaffAdd /></ProtectedRoute>} />
             <Route path="/staff/edit/:id" element={<ProtectedRoute><StaffEdit /></ProtectedRoute>} />
@@ -136,34 +203,63 @@ function App() {
             <Route path="/inventory/add" element={<ProtectedRoute><InventoryAdd /></ProtectedRoute>} />
             <Route path="/inventory/edit/:id" element={<ProtectedRoute><InventoryEdit /></ProtectedRoute>} />
             <Route path="/low-stock" element={<ProtectedRoute><LowStockPage /></ProtectedRoute>} />
+            <Route path="/stock-transactions" element={<Navigate to="/stock-transactions/list" replace />} />
             <Route path="/stock-transactions/list" element={<ProtectedRoute><StockTransactionList /></ProtectedRoute>} />
             <Route path="/stock-transactions/add" element={<ProtectedRoute><StockTransactionAdd /></ProtectedRoute>} />
             <Route path="/stock-transactions/edit/:id" element={<ProtectedRoute><StockTransactionEdit /></ProtectedRoute>} />
+            
+            <Route path="/stock-transfers" element={<Navigate to="/stock-transfers/list" replace />} />
+            <Route path="/stock-transfers/list" element={<ProtectedRoute><StockTransferList /></ProtectedRoute>} />
+            <Route path="/stock-transfers/add" element={<ProtectedRoute><StockTransferAdd /></ProtectedRoute>} />
+
+            <Route path="/ingredients" element={<Navigate to="/ingredients/list" replace />} />
             <Route path="/ingredients/list" element={<ProtectedRoute><IngredientList /></ProtectedRoute>} />
             <Route path="/ingredients/add" element={<ProtectedRoute><IngredientAdd /></ProtectedRoute>} />
-            <Route path="/ingredients/edit/:id" element={<ProtectedRoute><IngredientEdit /></ProtectedRoute>} />
+            
+            <Route path="/product-ingredients" element={<Navigate to="/product-ingredients/list" replace />} />
             <Route path="/product-ingredients/list" element={<ProtectedRoute><ProductIngredientList /></ProtectedRoute>} />
-
             <Route path="/product-ingredients/add" element={<ProtectedRoute><ProductIngredientAdd /></ProtectedRoute>} />
             <Route path="/product-ingredients/edit/:id" element={<ProtectedRoute><ProductIngredientEdit /></ProtectedRoute>} />
+
+            <Route path="/orders" element={<Navigate to="/orders/list" replace />} />
             <Route path="/orders/list" element={<ProtectedRoute><OrderList /></ProtectedRoute>} />
             <Route path="/orders/add" element={<ProtectedRoute><OrderAdd /></ProtectedRoute>} />
             <Route path="/orders/edit/:id" element={<ProtectedRoute><OrderEdit /></ProtectedRoute>} />
             <Route path="/orders/detail/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
+
+            <Route path="/dining-tables" element={<Navigate to="/dining-tables/list" replace />} />
             <Route path="/dining-tables/list" element={<ProtectedRoute><DiningTableList /></ProtectedRoute>} />
             <Route path="/dining-tables/add" element={<ProtectedRoute><DiningTableAdd /></ProtectedRoute>} />
             <Route path="/dining-tables/edit/:id" element={<ProtectedRoute><DiningTableEdit /></ProtectedRoute>} />
+
+            <Route path="/promotions" element={<Navigate to="/promotions/list" replace />} />
             <Route path="/promotions/list" element={<ProtectedRoute><PromotionList /></ProtectedRoute>} />
             <Route path="/promotions/add" element={<ProtectedRoute><PromotionAdd /></ProtectedRoute>} />
             <Route path="/promotions/edit/:id" element={<ProtectedRoute><PromotionEdit /></ProtectedRoute>} />
+
+            <Route path="/purchases" element={<Navigate to="/purchases/list" replace />} />
             <Route path="/purchases/list" element={<ProtectedRoute><PurchaseList /></ProtectedRoute>} />
             <Route path="/purchases/create" element={<ProtectedRoute><CreatePurchase /></ProtectedRoute>} />
             <Route path="/purchases/edit/:id" element={<ProtectedRoute><PurchaseEdit /></ProtectedRoute>} />
             <Route path="/purchases/:id" element={<ProtectedRoute><PurchaseDetail /></ProtectedRoute>} />
+
+            <Route path="/sales" element={<Navigate to="/sales/list" replace />} />
             <Route path="/sales/list" element={<ProtectedRoute><SalesList /></ProtectedRoute>} />
             <Route path="/sales/add" element={<ProtectedRoute><SalesAdd /></ProtectedRoute>} />
             <Route path="/sales/edit/:id" element={<ProtectedRoute><SalesEdit /></ProtectedRoute>} />
             <Route path="/sales/:id" element={<ProtectedRoute><SaleDetail /></ProtectedRoute>} />
+            
+            <Route path="/branches" element={<Navigate to="/branches/list" replace />} />
+            <Route path="/branches/list" element={<ProtectedRoute><BranchList /></ProtectedRoute>} />
+            <Route path="/branches/add" element={<ProtectedRoute><BranchAdd /></ProtectedRoute>} />
+            <Route path="/branches/edit/:id" element={<ProtectedRoute><BranchAdd /></ProtectedRoute>} />
+            
+            <Route path="/inventory-audits" element={<Navigate to="/inventory-audits/list" replace />} />
+            <Route path="/inventory-audits/list" element={<ProtectedRoute><InventoryAuditList /></ProtectedRoute>} />
+            <Route path="/inventory-audits/add" element={<ProtectedRoute><InventoryAuditAdd /></ProtectedRoute>} />
+            <Route path="/inventory-audits/:id" element={<ProtectedRoute><InventoryAuditDetail /></ProtectedRoute>} />
+            <Route path="/payroll" element={<ProtectedRoute><PayrollList /></ProtectedRoute>} />
+
             <Route path="/low-stock-alerts" element={<ProtectedRoute><LowStockAlerts /></ProtectedRoute>} />
             <Route path="/pos" element={<ProtectedRoute><POSPage /></ProtectedRoute>} />
             <Route path="/kitchen" element={<ProtectedRoute><Kitchen /></ProtectedRoute>} />
@@ -172,6 +268,7 @@ function App() {
         </Suspense>
         </ErrorBoundary>
       </LayoutProvider>
+      <ToastContainer />
     </AuthProvider>
   );
 }

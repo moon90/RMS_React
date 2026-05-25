@@ -1,0 +1,76 @@
+{
+  "sidebar": {
+    "dashboard": "Tableau de Bord",
+    "inventory": "Inventaire",
+    "variance_ai": "IA de Variance",
+    "ingredient_list": "Liste des Ingrédients",
+    "low_stock": "Stock Faible",
+    "logistics": "Logistique",
+    "transfer_list": "Liste de Transfert",
+    "new_transfer": "Nouveau Transfert",
+    "branches": "Succursales",
+    "branch_list": "Liste des Succursales",
+    "add_branch": "Ajouter une Succursale",
+    "roles": "Rôles",
+    "permissions": "Permissions",
+    "menus": "Menus",
+    "customers": "Clients",
+    "staff": "Personnel",
+    "payroll_ai": "IA de Paie",
+    "promotions": "Promotions",
+    "purchases": "Achats",
+    "sales": "Ventes",
+    "pos": "Terminal POS",
+    "kitchen": "Affichage Cuisine"
+  },
+  "pos": {
+    "hold_order": "Retenir la Commande",
+    "send_to_kitchen": "Envoyer en Cuisine",
+    "clear_cart": "Vider le Panier",
+    "view_bills": "Voir les Factures",
+    "exit": "Quitter le POS",
+    "kot_required_dinein": "Veuillez envoyer la commande en cuisine d'abord pour le sur place.",
+    "wait_for_ready": "Paiement : Il est recommandé d'attendre que la nourriture soit 'Prête'.",
+    "order_type": "Type de Commande",
+    "dine_in": "Sur Place",
+    "take_away": "À Emporter",
+    "delivery": "Livraison",
+    "cart": "Panier",
+    "cart_empty": "Le panier est vide",
+    "checkout": "Payer",
+    "print_bill": "Imprimer la Facture",
+    "items_pending": "articles en attente de synchronisation",
+    "items_synced": "articles synchronisés.",
+    "sync_now": "Synchroniser Maintenant",
+    "checkout_shortcut": "Appuyez sur Alt+C pour payer"
+  },
+  "dashboard": {
+    "welcome": "Bon retour",
+    "stats": {
+      "total_revenue": "Revenu Total",
+      "daily_orders": "Commandes Quotidiennes",
+      "total_customers": "Total Clients",
+      "avg_order": "Valeur Moyenne"
+    },
+    "ai_pulse": {
+        "title": "Co-Pilote IA",
+        "status": "Sincronisation Neurale Active",
+        "scan": "Scan d'Optimisation"
+    },
+    "staff_leaderboard": {
+        "title": "Aperçu du Personnel",
+        "subtitle": "Performance Réseau"
+    }
+  },
+  "common": {
+    "search": "Rechercher...",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "loading": "Chargement...",
+    "new": "Nouveau",
+    "network_restored": "Réseau Restauré",
+    "terminal_offline": "Terminal Hors Ligne"
+  }
+}

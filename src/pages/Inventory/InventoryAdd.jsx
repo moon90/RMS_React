@@ -1,185 +1,324 @@
 import React, { useState, useEffect } from 'react';
-import { createInventory } from '../../services/inventoryService';
-import { getAllProducts } from '../../services/productService'; // Assuming you need to select a product
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { createInventory, updateInventory } from '../../services/inventoryService';
+import { getAllProducts } from '../../services/productService';
+import { hasPermission } from '../../utils/permissionUtils';
 import FormCard from '../../components/FormCard.jsx';
 import { toast } from 'react-toastify';
+import { 
+  FaWarehouse, 
+  FaSave, 
+  FaUndo, 
+  FaCheckCircle, 
+  FaTimesCircle,
+  FaBoxOpen,
+  FaChartLine,
+  FaShoppingCart,
+  FaBoxes
+} from 'react-icons/fa';
 
-const ValidationToast = ({ title, messages }) => (
-  <div>
-    <strong>{title}</strong>
-    <ul style={{ whiteSpace: 'pre-wrap', textAlign: 'left', paddingLeft: '20px' }}>
-      {messages.map((msg, index) => (
-        <li key={index}>{msg}</li>
-      ))}
-    </ul>
-  </div>
-);
-
-const InventoryAdd = () => {
-  const [productID, setProductID] = useState('');
-  const [initialStock, setInitialStock] = useState('');
-  const [currentStock, setCurrentStock] = useState('');
-  const [minStockLevel, setMinStockLevel] = useState('');
-  const [status, setStatus] = useState(true);
+const InventoryAdd = ({ isEdit = false, inventoryData = null, onClose, onSave, showTitle = true }) => {
+  const [formData, setFormData] = useState({
+    productID: '',
+    initialStock: '',
+    currentStock: '',
+    minStockLevel: '',
+    status: true
+  });
+  
   const [products, setProducts] = useState([]);
   const [errors, setErrors] = useState({});
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const canCreate = user?.permissions?.includes('INVENTORY_CREATE');
+  const canCreate = hasPermission('INVENTORY_CREATE');
+  const canUpdate = hasPermission('INVENTORY_UPDATE');
 
   useEffect(() => {
-    if (!canCreate) {
-      navigate('/access-denied');
-    }
-
     const fetchDependencies = async () => {
       try {
         const productsRes = await getAllProducts({ pageNumber: 1, pageSize: 1000, status: true });
         if (productsRes.data.isSuccess) {
-          setProducts(productsRes.data.data.items);
+          const data = productsRes.data.data;
+          const items = data?.items || data?.Items || (Array.isArray(data) ? data : []);
+          setProducts(items.map(p => ({
+            id: p.id || p.Id || p.productID,
+            name: p.productName || p.name || p.Name
+          })));
         }
       } catch (error) {
-        toast.error('Failed to load dependencies.');
-        console.error(error);
+        toast.error('Dependency synchronization failed.');
       }
     };
-
     fetchDependencies();
-  }, [canCreate, navigate]);
+  }, []);
+
+  useEffect(() => {
+    if (isEdit && inventoryData) {
+      setFormData({
+        inventoryID: inventoryData.inventoryID || inventoryData.id,
+        productID: inventoryData.productID || '',
+        initialStock: inventoryData.initialStock || '',
+        currentStock: inventoryData.currentStock || '',
+        minStockLevel: inventoryData.minStockLevel || '',
+        status: inventoryData.status ?? true
+      });
+    }
+  }, [isEdit, inventoryData]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const handleReset = () => {
+    setErrors({});
+    if (isEdit && inventoryData) {
+      setFormData({
+        inventoryID: inventoryData.inventoryID || inventoryData.id,
+        productID: inventoryData.productID || '',
+        initialStock: inventoryData.initialStock || '',
+        currentStock: inventoryData.currentStock || '',
+        minStockLevel: inventoryData.minStockLevel || '',
+        status: inventoryData.status ?? true
+      });
+    } else {
+      setFormData({
+        productID: '',
+        initialStock: '',
+        currentStock: '',
+        minStockLevel: '',
+        status: true
+      });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
+    setIsLoading(true);
+
+    if (isEdit && !canUpdate) {
+      toast.error('Access denied');
+      setIsLoading(false);
+      return;
+    }
+    if (!isEdit && !canCreate) {
+      toast.error('Access denied');
+      setIsLoading(false);
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      productID: parseInt(formData.productID),
+      initialStock: parseInt(formData.initialStock),
+      currentStock: parseInt(formData.currentStock),
+      minStockLevel: parseInt(formData.minStockLevel)
+    };
 
     try {
-      const inventoryData = {
-        productID: parseInt(productID),
-        initialStock: parseInt(initialStock),
-        currentStock: parseInt(currentStock),
-        minStockLevel: parseInt(minStockLevel),
-        status: status,
-      };
-
-      await createInventory(inventoryData);
-      toast.success('Inventory item created successfully!');
-      navigate('/inventory/list');
-    } catch (err) {
-      if (err.response && err.response.data && err.response.data.details) {
-        const newErrors = {};
-        const errorMessages = err.response.data.details.map(error => {
-          newErrors[error.propertyName.toLowerCase()] = error.errorMessage;
-          return `- ${error.errorMessage}`;
-        });
-        setErrors(newErrors);
-        toast.error(<ValidationToast title={err.response.data.message} messages={errorMessages} />);
+      let response;
+      if (isEdit) {
+        response = await updateInventory(payload.inventoryID, payload);
       } else {
-        toast.error(err.response?.data?.message || err.message || 'An error occurred.');
+        response = await createInventory(payload);
       }
-      console.error(err);
+
+      if (response.data.isSuccess) {
+        toast.success(isEdit ? 'Stock updated' : 'Stock saved');
+        if (onSave) onSave();
+        if (onClose) onClose();
+      } else {
+        const errorResponse = response.data;
+        if (errorResponse && errorResponse.details && errorResponse.details.length > 0) {
+          const apiErrors = {};
+          errorResponse.details.forEach(err => {
+            apiErrors[err.propertyName.toLowerCase()] = err.errorMessage;
+          });
+          setErrors(apiErrors);
+          toast.error('Save failed');
+        } else {
+          toast.error(errorResponse?.message || 'Error occurred');
+        }
+      }
+    } catch (error) {
+      toast.error('Connection error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (!canCreate) {
-    return null;
-  }
-
   return (
-    <div className="p-3 max-w-4xl mx-auto">
+    <div className="p-3 max-w-4xl mx-auto text-left">
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New Inventory Item</h2>
+        {showTitle && (
+          <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <FaWarehouse className="text-white text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+                {isEdit ? 'Edit Stock' : 'Add Stock'}
+              </h2>
+              <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1 text-left">Stock details</p>
+            </div>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="productID" className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-              <select
-                id="productID"
-                name="productID"
-                value={productID}
-                onChange={(e) => setProductID(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.productID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="">Select Product</option>
-                {products.map(prod => (
-                  <option key={prod.id} value={prod.id}>{prod.productName}</option>
-                ))}
-              </select>
-              {errors.productID && <p className="text-red-500 text-xs mt-1">{errors.productID}</p>}
+        <form onSubmit={handleSubmit} className="space-y-10">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Product Selection */}
+            <div className="relative group md:col-span-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Product
+              </label>
+              <div className="relative">
+                <FaBoxOpen className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors pointer-events-none" />
+                <select
+                  name="productID"
+                  value={formData.productID}
+                  onChange={handleInputChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 appearance-none cursor-pointer disabled:opacity-50"
+                  required
+                  disabled={isEdit}
+                >
+                  <option value="">Select Product</option>
+                  {products.map(prod => (
+                    <option key={prod.id} value={prod.id}>{prod.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label htmlFor="initialStock" className="block text-sm font-medium text-gray-700 mb-1">Initial Stock</label>
-              <input
-                type="number"
-                id="initialStock"
-                name="initialStock"
-                value={initialStock}
-                placeholder="Enter initial stock"
-                onChange={(e) => setInitialStock(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.initialStock ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.initialStock && <p className="text-red-500 text-xs mt-1">{errors.initialStock}</p>}
+
+            {/* Stocks */}
+            <div className="relative group text-left">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                Initial Stock
+              </label>
+              <div className="relative">
+                <FaBoxes className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                <input
+                  type="number"
+                  name="initialStock"
+                  value={formData.initialStock}
+                  onChange={handleInputChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700"
+                  placeholder="0"
+                  required
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="currentStock" className="block text-sm font-medium text-gray-700 mb-1">Current Stock</label>
-              <input
-                type="number"
-                id="currentStock"
-                name="currentStock"
-                value={currentStock}
-                placeholder="Enter current stock"
-                onChange={(e) => setCurrentStock(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.currentStock ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.currentStock && <p className="text-red-500 text-xs mt-1">{errors.currentStock}</p>}
+
+            <div className="relative group text-left">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                {isEdit ? 'Current Stock Adjustment' : 'Min Stock Level'}
+              </label>
+              <div className="relative">
+                {isEdit ? (
+                   <>
+                    <FaChartLine className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <input
+                      type="number"
+                      name="currentStock"
+                      value={formData.currentStock}
+                      onChange={handleInputChange}
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700"
+                      placeholder="0"
+                      required
+                    />
+                   </>
+                ) : (
+                  <>
+                    <FaShoppingCart className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                    <input
+                      type="number"
+                      name="minStockLevel"
+                      value={formData.minStockLevel}
+                      onChange={handleInputChange}
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700"
+                      placeholder="0"
+                      required
+                    />
+                  </>
+                )}
+              </div>
             </div>
-            <div>
-              <label htmlFor="minStockLevel" className="block text-sm font-medium text-gray-700 mb-1">Min Stock Level</label>
-              <input
-                type="number"
-                id="minStockLevel"
-                name="minStockLevel"
-                value={minStockLevel}
-                placeholder="Enter minimum stock level"
-                onChange={(e) => setMinStockLevel(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.minStockLevel ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.minStockLevel && <p className="text-red-500 text-xs mt-1">{errors.minStockLevel}</p>}
-            </div>
-            <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                id="status"
-                name="status"
-                value={status}
-                onChange={(e) => setStatus(e.target.value === 'true')}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </select>
+
+            {isEdit && (
+               <div className="relative group text-left">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors">
+                  Min Stock Level
+                </label>
+                <div className="relative">
+                  <FaShoppingCart className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500 transition-colors" />
+                  <input
+                    type="number"
+                    name="minStockLevel"
+                    value={formData.minStockLevel}
+                    onChange={handleInputChange}
+                    className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700"
+                    placeholder="0"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Status */}
+            <div className="relative group md:col-span-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600 transition-colors text-left">
+                Status
+              </label>
+              <div className="flex gap-4 p-1 bg-gray-50 rounded-2xl border-2 border-transparent focus-within:border-blue-100 focus-within:bg-white transition-all">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, status: true }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                    formData.status ? 'bg-white text-green-600 shadow-sm border border-green-100' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <FaCheckCircle className={formData.status ? 'text-green-500' : 'text-gray-300'} /> Active
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, status: false }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                    !formData.status ? 'bg-white text-red-600 shadow-sm border border-red-100' : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <FaTimesCircle className={!formData.status ? 'text-red-500' : 'text-gray-300'} /> Inactive
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          {/* ACTIONS */}
+          <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-50">
             <button
               type="button"
-              onClick={() => navigate('/inventory/list')}
-              className="px-5 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition"
+              onClick={() => { handleReset(); if(onClose) onClose(); }}
+              className="px-8 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 hover:text-gray-600 transition-all flex items-center gap-2"
             >
-              Cancel
+              <FaUndo /> Reset
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
+              disabled={isLoading}
+              className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              Add Inventory
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <FaSave /> {isEdit ? 'Update Stock' : 'Add Stock'}
+                </>
+              )}
             </button>
           </div>
         </form>

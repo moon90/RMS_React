@@ -1,62 +1,68 @@
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler } from 'chart.js';
+import React from 'react';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { Card, CardContent, Typography, Box, useTheme } from '@mui/material';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
-export default function RevenueChart() {
-  const theme = useTheme();
-
-  const data = {
-    labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'],
+const RevenueChart = ({ data, currencySymbol = '$' }) => {
+  const chartData = {
+    labels: data?.map(d => d.label) || [],
     datasets: [
       {
-        label: "Revenue",
-        data: [22, 27, 21, 30, 24, 29, 32],
+        label: 'Revenue',
+        data: data?.map(d => d.amount) || [],
         fill: true,
-        backgroundColor: theme.palette.secondary.light,
-        borderColor: theme.palette.secondary.main,
-        tension: 0.5,
-        pointRadius: 0,
-      }
-    ]
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderColor: '#3b82f6',
+        borderWidth: 3,
+        pointBackgroundColor: '#ffffff',
+        pointBorderColor: '#3b82f6',
+        pointBorderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        tension: 0.4,
+      },
+    ],
   };
 
   const options = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: { mode: 'index', intersect: false }
+      tooltip: {
+        backgroundColor: '#1e293b',
+        padding: 12,
+        titleFont: { size: 14, weight: 'bold' },
+        bodyFont: { size: 13 },
+        displayColors: false,
+        callbacks: {
+          label: (context) => `${currencySymbol}${(context.parsed.y ?? 0).toLocaleString()}`,
+        },
+      },
     },
     scales: {
-      x: { grid: { display: false } },
-      y: { grid: { display: false }, beginAtZero: true }
-    }
+      x: {
+        grid: { display: false },
+        ticks: { color: '#64748b', font: { weight: 'bold' } },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: '#f1f5f9' },
+        ticks: {
+          color: '#64748b',
+          font: { weight: 'bold' },
+          callback: (value) => `${currencySymbol}${value}`,
+        },
+      },
+    },
   };
 
   return (
-    <Card sx={{ mt: 3 }}>
-      <CardContent>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Box>
-            <Typography variant="h6" component="div">
-              Today's Revenue
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Lorem ipsum dolor sit amet
-            </Typography>
-          </Box>
-          <Box sx={{ textAlign: 'right' }}>
-            <Typography variant="h5" component="div" sx={{ fontWeight: 'bold', color: theme.palette.text.primary }}>
-              $240.45
-            </Typography>
-            <Typography variant="body2" color="success.main">
-              ↑ 0.5% than last day
-            </Typography>
-          </Box>
-        </Box>
-        <Line data={data} options={options} height={100} />
-      </CardContent>
-    </Card>
+    <div className="h-[300px]">
+      <Line data={chartData} options={options} />
+    </div>
   );
-}
+};
+
+export default RevenueChart;

@@ -13,10 +13,10 @@ const SaleDetail = () => {
         const fetchSale = async () => {
             try {
                 const response = await salesService.getSaleById(id);
-                if (response.isSuccess) {
-                    setSale(response.data);
+                if (response.data && response.data.isSuccess) {
+                    setSale(response.data.data);
                 } else {
-                    setError(response.message);
+                    setError(response.data?.message || 'Sale not found.');
                 }
             } catch (err) {
                 setError('Failed to fetch sale details.');

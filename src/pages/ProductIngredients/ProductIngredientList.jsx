@@ -1,344 +1,313 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { debounce } from 'lodash';
-import { getAllProductIngredients, deleteProductIngredient } from '../../services/productIngredientService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { FaEdit, FaTrash, FaPlus, FaEye } from 'react-icons/fa';
-import ProfessionalPagination from '../../components/ProfessionalPagination';
+import ProductIngredientAdd from './ProductIngredientAdd.jsx';
 import { toast } from 'react-toastify';
+import { getAllProductIngredients, deleteProductIngredient, toggleProductIngredientStatus } from '../../services/productIngredientService';
+import { hasPermission } from '../../utils/permissionUtils';
+import ProfessionalPagination from '../../components/ProfessionalPagination';
+import { 
+  FaFlask, 
+  FaSearch, 
+  FaPlus, 
+  FaEdit, 
+  FaTrashAlt, 
+  FaCheckCircle, 
+  FaTimesCircle, 
+  FaBoxOpen, 
+  FaLeaf, 
+  FaChevronDown,
+  FaChevronUp,
+  FaFilter,
+  FaBalanceScale,
+  FaWeightHanging,
+  FaCogs
+} from 'react-icons/fa';
 
-const ProductIngredientList = () => {
-  const [productIngredients, setProductIngredients] = useState([]);
-  const [totalProductIngredients, setTotalProductIngredients] = useState(0);
+export default function ProductIngredientList() {
+  const [rawData, setRawData] = useState([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [expandedProducts, setExpandedProducts] = useState({});
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('productName');
-  const [sortDirection, setSortDirection] = useState('asc');
-  const [statusFilter, setStatusFilter] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [expandedRow, setExpandedRow] = useState(null);
 
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const canCreate = hasPermission('PRODUCT_INGREDIENT_CREATE');
+  const canUpdate = hasPermission('PRODUCT_INGREDIENT_UPDATE');
+  const canDelete = hasPermission('PRODUCT_INGREDIENT_DELETE');
 
-  const canView = user?.permissions?.includes('PRODUCT_INGREDIENT_VIEW');
-  const canCreate = user?.permissions?.includes('PRODUCT_INGREDIENT_CREATE');
-  const canEdit = user?.permissions?.includes('PRODUCT_INGREDIENT_UPDATE');
-  const canDelete = user?.permissions?.includes('PRODUCT_INGREDIENT_DELETE');
-
-  const fetchProductIngredients = useCallback(async () => {
+  const fetchItems = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = {
-        pageNumber: currentPage,
-        pageSize: itemsPerPage,
+        pageNumber: 1, // We fetch more to allow client-side grouping for "Dynamic" feel
+        pageSize: 1000, 
         searchQuery: searchTerm,
-        sortColumn: sortField,
-        sortDirection: sortDirection,
-        status: statusFilter,
       };
       const response = await getAllProductIngredients(params);
       if (response.data.isSuccess) {
-        const groupedIngredients = response.data.data.items.reduce((acc, item) => {
-          const existing = acc.find(i => i.productID === item.productID);
-          if (existing) {
-            existing.ingredients.push(item);
-          } else {
-            acc.push({
-              productID: item.productID,
-              productName: item.productName,
-              ingredients: [item]
-            });
-          }
-          return acc;
-        }, []);
-        setProductIngredients(groupedIngredients);
-        setTotalProductIngredients(response.data.data.totalRecords || 0);
+        setRawData(response.data.data.items || []);
+        setTotalRecords(response.data.data.totalRecords || 0);
       } else {
-        toast.error(response.data.message || 'Failed to fetch product ingredients');
-        setProductIngredients([]);
-        setTotalProductIngredients(0);
+        toast.error('Failed to fetch formula List');
+        setRawData([]);
       }
     } catch (error) {
-      toast.error('An error occurred while fetching product ingredients.');
-      console.error(error);
-      setProductIngredients([]);
-      setTotalProductIngredients(0);
+      toast.error('Critical failure: Formula List unreachable.');
+      setRawData([]);
     } finally {
       setIsLoading(false);
     }
-  }, [currentPage, itemsPerPage, searchTerm, sortField, sortDirection, statusFilter]);
+  }, [searchTerm]);
 
   useEffect(() => {
-    if (!canView) {
-      navigate('/access-denied');
-      return;
-    }
-    fetchProductIngredients();
-  }, [canView, navigate, fetchProductIngredients]);
+    fetchItems();
+  }, [fetchItems]);
 
-  const debouncedSearch = useCallback(debounce((value) => {
-    setSearchTerm(value);
-    setCurrentPage(1);
-  }, 300), []);
+  // Grouping logic for Dynamic Product-Centric View
+  const groupedData = useMemo(() => {
+    const groups = {};
+    rawData.forEach(item => {
+      const pId = item.productID;
+      if (!groups[pId]) {
+        groups[pId] = {
+          productID: pId,
+          productName: item.productName,
+          ingredients: [],
+          status: item.status
+        };
+      }
+      groups[pId].ingredients.push(item);
+    });
+    return Object.values(groups);
+  }, [rawData]);
 
-  const handleSearchChange = (event) => {
-    debouncedSearch(event.target.value);
-  };
-
-  const handleSort = (field) => {
-    if (isLoading) return;
-    if (field === sortField) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleRowsPerPageChange = (newRowsPerPage) => {
-    setItemsPerPage(newRowsPerPage);
-    setCurrentPage(1);
+  const toggleProduct = (pId) => {
+    setExpandedProducts(prev => ({ ...prev, [pId]: !prev[pId] }));
   };
 
   const handleDelete = (id) => {
-    if (!canDelete) {
-      toast.error('You do not have permission to delete product ingredient.');
-      return;
-    }
-    toast(
-      ({ closeToast }) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-800 mb-2">Are you sure you want to delete this product ingredient?</span>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const response = await deleteProductIngredient(id);
-                  if (response.data.isSuccess) {
-                    toast.success('Product ingredient deleted successfully');
-                    fetchProductIngredients();
-                  } else {
-                    toast.error(response.data.message || 'Failed to delete product ingredient');
-                  }
-                } catch (error) {
-                  if (error.response && error.response.data && error.response.data.message) {
-                    toast.error(error.response.data.message);
-                  } else {
-                    toast.error('An error occurred while deleting the product ingredient.');
-                  }
-                  console.error(error);
-                } finally {
-                  closeToast();
+    if (!canDelete) return;
+    toast(({ closeToast }) => (
+      <div className="p-1 text-left">
+        <p className="text-sm font-black text-gray-800 mb-3">Delete this ingredient?</p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const response = await deleteProductIngredient(id);
+                if (response.data.isSuccess) {
+                  toast.success('Ingredient deleted');
+                  fetchItems();
                 }
-              }}
-              className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Delete
-            </button>
-            <button
-              onClick={closeToast}
-              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </div>
+              } catch (err) {
+                toast.error('Delete failed');
+              }
+              closeToast();
+            }}
+            className="bg-red-500 text-white px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest"
+          >
+            Confirm
+          </button>
+          <button onClick={closeToast} className="bg-gray-100 text-gray-400 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Cancel</button>
         </div>
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false
-      }
-    );
+      </div>
+    ), { autoClose: false, closeOnClick: false });
   };
 
-  
-
-  const toggleRow = (id) => {
-    if (expandedRow === id) {
-      setExpandedRow(null);
-    } else {
-      setExpandedRow(id);
-    }
+  const handleToggleStatus = async (id, currentStatus) => {
+    if (!canUpdate) return;
+    try {
+      const response = await toggleProductIngredientStatus(id, !currentStatus);
+      if (response.data.isSuccess) {
+        toast.success(`Status updated`);
+        fetchItems();
+      }
+    } catch (error) {}
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-center">
-        <h2 className="text-2xl font-semibold">Product Ingredient List</h2>
+    <div className="container mx-auto p-6 animate-fade-in max-w-7xl text-left">
+      
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-gray-900 flex items-center gap-4">
+            <div className="p-3 bg-purple-600 rounded-2xl shadow-xl shadow-purple-200">
+              <FaFlask className="text-white" />
+            </div>
+            Product Ingredients
+          </h1>
+          <p className="text-gray-400 mt-2 font-bold italic text-sm">Manage ingredients and formulas for each product</p>
+        </div>
+        
         {canCreate && (
           <button
-            onClick={() => navigate('/product-ingredients/add')}
-            className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+            onClick={() => { setSelectedItem(null); setIsModalOpen(true); }}
+            className="flex items-center gap-3 px-8 py-4 bg-purple-600 text-white rounded-[2rem] font-black shadow-2xl shadow-purple-500/20 hover:bg-purple-700 hover:-translate-y-1 transition-all active:scale-95 text-[12px] uppercase tracking-widest"
           >
-            Add Product Ingredient
+            <FaPlus /> Add Ingredient
           </button>
         )}
       </div>
 
-      {/* Search */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <input
-            type="text"
-            placeholder="Search product ingredients..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            onChange={handleSearchChange}
-            disabled={isLoading}
-          />
-          <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
-        </div>
-        <div className="relative">
-          <select
-            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            disabled={isLoading}
-          >
-            <option value="">All Statuses</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Responsive Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-              <th
-                className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                onClick={() => handleSort('productName')}
-              >
-                <div className="flex items-center">
-                  Product Name
-                  {sortField === 'productName' && (
-                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                        d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                    </svg>
-                  )}
-                </div>
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {isLoading ? (
-              <tr>
-                <td colSpan="3" className="text-center py-4">Loading...</td>
-              </tr>
-            ) : productIngredients.length > 0 ? (
-              productIngredients.map((product, idx) => (
-                <React.Fragment key={product.productID}>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-4 text-sm text-gray-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                    <td className="px-4 py-4 text-sm text-gray-700">{product.productName}</td>
-                    <td className="px-4 py-4 text-sm text-gray-700">
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => toggleRow(product.productID)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="View Details"
-                        >
-                          <FaEye className="w-4 h-4 text-gray-600" />
-                        </button>
-                        {canEdit && (
-                          <button 
-                            onClick={() => navigate(`/product-ingredients/edit/${product.productID}`)}
-                            className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                            aria-label="Edit product ingredient"
-                          >
-                            <FaEdit className="w-4 h-4 text-blue-600" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                  {expandedRow === product.productID && (
-                    <tr>
-                      <td colSpan="3" className="p-4 bg-gray-50">
-                        <h4 className="text-lg font-semibold mb-2">Ingredients for {product.productName}</h4>
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ingredient Name</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {product.ingredients.map(ingredient => (
-                              <tr key={ingredient.productIngredientID}>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{ingredient.ingredientName}</td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{ingredient.quantity}</td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{ingredient.unitName}</td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                                  <span
-                                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                      ingredient.status
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-red-100 text-red-800'
-                                    }`}
-                                  >
-                                    {ingredient.status ? 'Active' : 'Inactive'}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-2 whitespace-nowrap text-sm font-medium">
-                                  <div className="flex space-x-2">
-                                    {canDelete && (
-                                      <button
-                                        onClick={() => handleDelete(ingredient.productIngredientID)}
-                                        className="p-1 border border-gray-300 rounded-md hover:bg-red-100 transition-colors"
-                                        aria-label="Delete product ingredient"
-                                      >
-                                        <FaTrash className="w-4 h-4 text-red-600" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="3" className="text-center py-4">No product ingredients found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {!isLoading && (
-        <ProfessionalPagination
-          count={totalProductIngredients}
-          page={currentPage}
-          rowsPerPage={itemsPerPage}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
+      {/* SEARCH */}
+      <div className="mb-10 group relative max-w-2xl">
+        <input
+          type="text"
+          placeholder="Search by product or ingredient..."
+          className="w-full pl-14 pr-6 py-5 bg-white border-2 border-gray-100 rounded-[2rem] focus:border-purple-500 focus:ring-8 focus:ring-purple-500/5 outline-none transition-all shadow-xl group-hover:shadow-2xl font-bold text-gray-700"
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
+        <FaSearch className="absolute top-1/2 -translate-y-1/2 left-6 text-gray-300 group-focus-within:text-purple-500 transition-colors text-xl" />
+      </div>
+
+      {/* PRODUCT-CENTRIC LIST */}
+      <div className="space-y-6">
+        {isLoading && groupedData.length === 0 ? (
+          <div className="py-20 text-center"><div className="w-16 h-16 border-4 border-gray-100 border-t-purple-600 rounded-full animate-spin mx-auto"></div><p className="mt-6 text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">Loading Ingredients...</p></div>
+        ) : groupedData.length > 0 ? (
+          groupedData.map((group) => (
+            <div key={group.productID} className="bg-white rounded-[2.5rem] shadow-xl border border-gray-50 overflow-hidden hover:shadow-2xl transition-all duration-500">
+              <div 
+                className="p-8 flex items-center justify-between cursor-pointer group/header select-none"
+                onClick={() => toggleProduct(group.productID)}
+              >
+                <div className="flex items-center gap-6">
+                  <div className={`p-4 rounded-2xl transition-all duration-500 ${expandedProducts[group.productID] ? 'bg-purple-600 text-white shadow-lg shadow-purple-200' : 'bg-gray-50 text-gray-400 group-hover/header:bg-purple-50 group-hover/header:text-purple-500'}`}>
+                    <FaBoxOpen size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-gray-800 tracking-tight flex items-center gap-3">
+                      {group.productName}
+                      <span className="px-3 py-1 bg-gray-100 text-gray-400 rounded-lg text-[10px] uppercase font-black tracking-widest border border-gray-200 group-hover/header:border-purple-200 group-hover/header:bg-purple-50 group-hover/header:text-purple-500 transition-all">
+                        {group.ingredients.length} Components
+                      </span>
+                    </h3>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Product ID: {group.productID}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${expandedProducts[group.productID] ? 'bg-purple-50 border-purple-200 text-purple-600 rotate-180' : 'bg-gray-50 border-gray-100 text-gray-300'}`}>
+                    <FaChevronDown />
+                  </div>
+                </div>
+              </div>
+
+              {expandedProducts[group.productID] && (
+                <div className="p-8 pt-0 animate-slide-down">
+                  <div className="bg-gray-50/50 rounded-[2rem] border border-gray-100 overflow-hidden">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-100 bg-white/50">
+                          <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Ingredient</th>
+                          <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Quantity</th>
+                          <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                          <th className="px-6 py-4 text-[9px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {group.ingredients.map((ing) => (
+                          <tr key={ing.productIngredientID} className="hover:bg-white transition-colors group/row">
+                            <td className="px-6 py-5">
+                              <div className="flex items-center gap-3">
+                                <FaLeaf className="text-green-300 group-hover/row:text-green-500 transition-colors" />
+                                <div className="flex flex-col">
+                                  <span className="font-black text-gray-700 text-sm tracking-tight">{ing.ingredientName}</span>
+                                  <span className="text-[9px] text-gray-400 font-bold uppercase truncate max-w-[150px]">{ing.remarks || 'No remarks'}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5">
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                  <FaWeightHanging className="text-gray-300 text-xs" />
+                                  <span className="text-sm font-black text-gray-700">{ing.quantity}</span>
+                                </div>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-5">{ing.unitShortName || ing.unitName}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5">
+                              <button 
+                                onClick={() => handleToggleStatus(ing.productIngredientID, ing.status)}
+                                className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+                                  ing.status ? 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100' : 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100'
+                                }`}
+                              >
+                                {ing.status ? 'Active' : 'Inactive'}
+                              </button>
+                            </td>
+                            <td className="px-6 py-5 text-right">
+                              <div className="flex justify-end gap-2">
+                                {canUpdate && (
+                                  <button 
+                                    onClick={() => { setSelectedItem(ing); setIsModalOpen(true); }}
+                                    className="p-2.5 bg-white border border-gray-100 rounded-xl text-blue-500 hover:shadow-lg transition-all hover:scale-110"
+                                  ><FaEdit size={14} /></button>
+                                )}
+                                {canDelete && (
+                                  <button 
+                                    onClick={() => handleDelete(ing.productIngredientID)}
+                                    className="p-2.5 bg-white border border-gray-100 rounded-xl text-red-400 hover:shadow-lg transition-all hover:scale-110"
+                                  ><FaTrashAlt size={14} /></button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-6 flex justify-end">
+                    <button 
+                      onClick={() => { setSelectedItem({ productID: group.productID }); setIsModalOpen(true); }}
+                      className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-purple-100 text-purple-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-purple-50 hover:border-purple-200 transition-all"
+                    >
+                      <FaPlus /> Add Ingredient to {group.productName}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="py-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-gray-100">
+            <FaFlask size={64} className="text-gray-100 mx-auto mb-6" />
+            <p className="text-xl font-black text-gray-300 uppercase tracking-widest">No Ingredients Found</p>
+          </div>
+        )}
+      </div>
+
+      {/* MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-lg animate-fade-in">
+          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in border border-white/20">
+            <div className="p-10 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
+              <div>
+                <h3 className="text-3xl font-black text-gray-900 flex items-center gap-4">
+                  <div className="p-3 bg-purple-600 rounded-2xl shadow-lg">
+                    <FaCogs className="text-white text-xl" />
+                  </div>
+                  {selectedItem?.productIngredientID ? 'Edit Ingredient' : 'Add Ingredient'}
+                </h3>
+                <p className="text-[10px] font-black text-gray-400 mt-2 uppercase tracking-widest pl-1">Product: {selectedItem?.productName || 'All Products'}</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="w-14 h-14 flex items-center justify-center rounded-full bg-white shadow-2xl text-gray-300 hover:text-red-500 transition-all hover:rotate-90 border border-gray-50"><FaTimesCircle size={32}/></button>
+            </div>
+            <div className="p-10 overflow-y-auto flex-1 custom-scrollbar bg-white">
+              <ProductIngredientAdd 
+                isEdit={!!selectedItem?.productIngredientID} 
+                data={selectedItem} 
+                onSave={() => { setIsModalOpen(false); fetchItems(); }} 
+                onClose={() => setIsModalOpen(false)} 
+                showTitle={false} 
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
-};
-
-export default ProductIngredientList;
+}

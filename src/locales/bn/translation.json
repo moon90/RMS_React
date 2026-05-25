@@ -1,0 +1,76 @@
+{
+  "sidebar": {
+    "dashboard": "ড্যাশবোর্ড",
+    "inventory": "ইনভেন্টরি",
+    "variance_ai": "ভ্যারিয়েন্স এআই",
+    "ingredient_list": "উপাদান তালিকা",
+    "low_stock": "কম স্টক",
+    "logistics": "লজিস্টিকস",
+    "transfer_list": "ট্রান্সফার তালিকা",
+    "new_transfer": "নতুন ট্রান্সফার",
+    "branches": "শাখা",
+    "branch_list": "শাখা তালিকা",
+    "add_branch": "শাখা যোগ করুন",
+    "roles": "ভূমিকা",
+    "permissions": "অনুমতি",
+    "menus": "মেনু",
+    "customers": "গ্রাহক",
+    "staff": "কর্মী",
+    "payroll_ai": "পেরোল এআই",
+    "promotions": "প্রমোশন",
+    "purchases": "ক্রয়",
+    "sales": "বিক্রয়",
+    "pos": "পিওএস টার্মিনাল",
+    "kitchen": "রান্নাঘর ডিসপ্লে"
+  },
+  "pos": {
+    "hold_order": "অর্ডার হোল্ড",
+    "send_to_kitchen": "রান্নাঘরে পাঠান",
+    "clear_cart": "কার্ট মুছুন",
+    "view_bills": "বিল দেখুন",
+    "exit": "পিওএস বন্ধ করুন",
+    "kot_required_dinein": "ডাইন-ইন এর জন্য আগে কেওটি পাঠান।",
+    "wait_for_ready": "ডাইন-ইন: খাবার তৈরি হওয়া পর্যন্ত অপেক্ষা করার পরামর্শ দেওয়া হচ্ছে।",
+    "order_type": "অর্ডারের ধরণ",
+    "dine_in": "ডাইন-ইন",
+    "take_away": "টেক অ্যাওয়ে",
+    "delivery": "ডেলিভারি",
+    "cart": "কার্ট",
+    "cart_empty": "কার্ট খালি",
+    "checkout": "চেকআউট",
+    "print_bill": "বিল প্রিন্ট",
+    "items_pending": "পণ্য সিঙ্ক বাকি",
+    "items_synced": "পণ্য সিঙ্ক হয়েছে।",
+    "sync_now": "এখনই সিঙ্ক করুন",
+    "checkout_shortcut": "চেকআউটের জন্য Alt+C চাপুন"
+  },
+  "dashboard": {
+    "welcome": "স্বাগতম",
+    "stats": {
+      "total_revenue": "মোট আয়",
+      "daily_orders": "দৈনিক অর্ডার",
+      "total_customers": "মোট গ্রাহক",
+      "avg_order": "গড় অর্ডার মূল্য"
+    },
+    "ai_pulse": {
+        "title": "এআই কো-পাইলট",
+        "status": "নিউরাল সিঙ্ক সক্রিয়",
+        "scan": "অপ্টিমাইজেশন স্ক্যান"
+    },
+    "staff_leaderboard": {
+        "title": "কর্মী পারফরম্যান্স",
+        "subtitle": "নেটওয়ার্ক-ব্যাপী রিপোর্ট"
+    }
+  },
+  "common": {
+    "search": "খুঁজুন...",
+    "save": "সংরক্ষণ",
+    "cancel": "বাতিল",
+    "delete": "মুছুন",
+    "edit": "সম্পাদন",
+    "loading": "লোড হচ্ছে...",
+    "new": "নতুন",
+    "network_restored": "নেটওয়ার্ক পুনরুদ্ধার হয়েছে",
+    "terminal_offline": "টার্মিনাল অফলাইন"
+  }
+}

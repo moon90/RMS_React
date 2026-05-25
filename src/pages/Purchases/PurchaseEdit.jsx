@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { purchaseService } from '../../services/purchaseService';
+import { toast } from 'react-toastify';
 
 const PurchaseEdit = () => {
     const { id } = useParams();
@@ -17,10 +18,10 @@ const PurchaseEdit = () => {
         const fetchPurchase = async () => {
             try {
                 const response = await purchaseService.getPurchaseById(id);
-                if (response.isSuccess) {
-                    setPurchaseData(response.data);
+                if (response.data && response.data.isSuccess) {
+                    setPurchaseData(response.data.data);
                 } else {
-                    setError(response.message);
+                    setError(response.data?.message || 'Purchase not found.');
                 }
             } catch (err) {
                 setError('Failed to fetch purchase details for editing.');
@@ -45,14 +46,14 @@ const PurchaseEdit = () => {
         e.preventDefault();
         try {
             const response = await purchaseService.updatePurchase(id, purchaseData);
-            if (response.isSuccess) {
-                alert('Purchase updated successfully!');
+            if (response.data && response.data.isSuccess) {
+                toast.success('Purchase updated successfully!');
                 navigate(`/purchases/${id}`); // Navigate back to purchase detail page
             } else {
-                alert(`Error updating purchase: ${response.message}`);
+                toast.error(`Error updating purchase: ${response.data?.message || 'Unknown error'}`);
             }
         } catch (err) {
-            alert('An error occurred while updating the purchase.');
+            toast.error('An error occurred while updating the purchase.');
             console.error('Error updating purchase:', err);
         }
     };

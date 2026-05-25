@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getOrderById, updateOrder } from '../../services/orderService';
 import { getAllCustomers } from '../../services/customerService';
@@ -7,11 +7,28 @@ import { getAllDiningTables } from '../../services/diningTableService';
 import { getAllStaff } from '../../services/staffService';
 import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
-import FormCard from '../../components/FormCard';
+import FormCard from '../../components/FormCard.jsx';
+import { 
+  FaClipboardList, 
+  FaSave, 
+  FaUndo, 
+  FaPlus, 
+  FaTrashAlt, 
+  FaCalendarAlt, 
+  FaClock, 
+  FaUser, 
+  FaUtensils, 
+  FaBoxOpen,
+  FaMoneyBillWave,
+  FaTags,
+  FaArrowLeft
+} from 'react-icons/fa';
 
 const OrderEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  
   const [formData, setFormData] = useState({
     orderID: id,
     orderDate: '',
@@ -20,415 +37,393 @@ const OrderEdit = () => {
     waiterName: '',
     orderStatus: '',
     orderType: '',
+    paymentStatus: '',
+    paymentMethod: '',
     total: 0,
     discountAmount: 0,
     discountPercentage: 0,
     promotionID: null,
     received: 0,
     changeAmount: 0,
+    tipAmount: 0,
     driverID: null,
     customerID: null,
     orderDetails: [],
   });
 
-  const [customers, setCustomers] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [diningTables, setDiningTables] = useState([]);
-  const [staff, setStaff] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [dependencies, setDependencies] = useState({
+    customers: [],
+    products: [],
+    diningTables: [],
+    staff: []
+  });
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const { user } = useAuth();
+  const { selectedBranch } = useAuth();
+  const currencySymbol = selectedBranch?.currencySymbol || '৳';
+
   const canEdit = user?.permissions?.includes('ORDER_UPDATE');
 
-  useEffect(() => {
-    const fetchOrderData = async () => {
-      try {
-        const orderResponse = await getOrderById(id);
-        console.log("Fetched order data:", orderResponse.data.data); // Log the fetched data
-        const orderData = orderResponse.data.data; // Adjust based on actual API response structure
+  const fetchDependencies = useCallback(async () => {
+    try {
+      const [customersRes, productsRes, tablesRes, staffRes] = await Promise.all([
+        getAllCustomers({ pageNumber: 1, pageSize: 1000, status: true }),
+        getAllProducts({ pageNumber: 1, pageSize: 1000, status: true }),
+        getAllDiningTables({ pageNumber: 1, pageSize: 1000 }),
+        getAllStaff({ pageNumber: 1, pageSize: 1000, status: true })
+      ]);
 
-        // Format date for input type="date"
-        const formattedOrderDate = orderData.orderDate ? new Date(orderData.orderDate).toISOString().split('T')[0] : '';
+      setDependencies({
+        customers: customersRes.data?.data?.items || customersRes.data?.items || [],
+        products: productsRes.data?.data?.items || productsRes.data?.items || [],
+        diningTables: tablesRes.data?.data?.items || tablesRes.data?.items || [],
+        staff: staffRes.data?.data?.items || staffRes.data?.items || []
+      });
+    } catch (error) {
+      console.error("Dependency sync failure:", error);
+    }
+  }, []);
 
+  const fetchOrderData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      await fetchDependencies();
+      const response = await getOrderById(id);
+      if (response.data && response.data.data) {
+        const orderData = response.data.data;
+        const formattedDate = orderData.orderDate ? new Date(orderData.orderDate).toISOString().split('T')[0] : '';
+        
         setFormData({
-          orderID: orderData.orderID,
-          orderDate: formattedOrderDate,
-          orderTime: orderData.orderTime,
+          ...orderData,
+          orderDate: formattedDate,
           tableName: orderData.tableName || '',
           waiterName: orderData.waiterName || '',
-          orderStatus: orderData.orderStatus,
-          orderType: orderData.orderType,
-          total: orderData.total,
-          discountAmount: orderData.discountAmount,
-          discountPercentage: orderData.discountPercentage,
-          promotionID: orderData.promotionID || null,
-          received: orderData.received,
-          changeAmount: orderData.changeAmount,
-          driverID: orderData.driverID || null,
-          customerID: orderData.customerID || null,
+          paymentStatus: orderData.paymentStatus || '',
+          paymentMethod: orderData.paymentMethod || '',
+          tipAmount: orderData.tipAmount || 0,
           orderDetails: orderData.orderDetails.map(detail => ({
-            orderDetailID: detail.orderDetailID, // Include OrderDetailID for updates
+            ...detail,
             productID: detail.productID,
             quantity: detail.quantity,
             price: detail.price,
-            discountPrice: detail.discountPrice,
-            amount: detail.amount,
-            promotionDetailID: detail.promotionDetailID || null,
-          })),
+            amount: detail.amount
+          }))
         });
-
-        const customerResponse = await getAllCustomers({ PageNumber: 1, PageSize: 1000 });
-        if (customerResponse.data && customerResponse.data.data && customerResponse.data.data.items) {
-          setCustomers(customerResponse.data.data.items);
-        }
-
-        const productResponse = await getAllProducts({ PageNumber: 1, PageSize: 1000 });
-        if (productResponse.data && productResponse.data.data && productResponse.data.data.items) {
-          setProducts(productResponse.data.data.items);
-        }
-
-        const diningTableResponse = await getAllDiningTables({ PageNumber: 1, PageSize: 1000 });
-        if (diningTableResponse.data && diningTableResponse.data.data && diningTableResponse.data.data.data.items) {
-          setDiningTables(diningTableResponse.data.data.data.items);
-        }
-
-        const staffResponse = await getAllStaff({ PageNumber: 1, PageSize: 1000 });
-        if (staffResponse.data && staffResponse.data.data && staffResponse.data.data.items) {
-          setStaff(staffResponse.data.data.items);
-        }
-
-      } catch (err) {
-        setError(err);
-        console.error("Error loading order data:", err); // Log the error for debugging
-        toast.error("Failed to load order data.");
-      } finally {
-        setLoading(false);
       }
-    };
-
-    fetchOrderData();
-  }, [id]);
+    } catch (err) {
+      toast.error("Failed to synchronize order protocol.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, fetchDependencies]);
 
   useEffect(() => {
-    if (!canEdit && !loading) {
+    if (!canEdit) {
       navigate('/access-denied');
+      return;
     }
-  }, [canEdit, loading, navigate]);
+    fetchOrderData();
+  }, [canEdit, navigate, fetchOrderData]);
 
-  const handleChange = (e) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    
+    if (name === 'waiterName') {
+      const selectedStaff = dependencies.staff.find(s => s.staffName === value);
+      setFormData(prev => ({ 
+        ...prev, 
+        waiterName: value,
+        staffID: selectedStaff ? selectedStaff.staffID : null 
+      }));
+    } else {
+      const val = (name === 'tipAmount' || name === 'discountAmount' || name === 'received') ? parseFloat(value) || 0 : value;
+      setFormData(prev => ({ ...prev, [name]: val }));
+    }
+    
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
   };
 
   const handleOrderDetailChange = (index, e) => {
     const { name, value } = e.target;
-    const newOrderDetails = [...formData.orderDetails];
-    const product = products.find(p => p.productID === parseInt(value));
+    const newDetails = [...formData.orderDetails];
+    
+    if (name === 'productID') {
+      const product = dependencies.products.find(p => (p.id || p.productID) === parseInt(value));
+      newDetails[index] = {
+        ...newDetails[index],
+        productID: parseInt(value),
+        price: product ? product.productPrice : 0,
+        productName: product ? product.productName : '',
+        amount: (newDetails[index].quantity || 1) * (product ? product.productPrice : 0)
+      };
+    } else {
+      const val = (name === 'quantity' || name === 'price' || name === 'discountPrice') ? parseFloat(value) || 0 : value;
+      newDetails[index] = { ...newDetails[index], [name]: val };
+      
+      if (name === 'quantity' || name === 'price' || name === 'discountPrice') {
+        newDetails[index].amount = (newDetails[index].quantity * newDetails[index].price) - (newDetails[index].discountPrice || 0);
+      }
+    }
 
-    newOrderDetails[index] = {
-      ...newOrderDetails[index],
-      [name]: name === 'quantity' || name === 'price' || name === 'discountPrice' ? parseFloat(value) || 0 : value,
-      productName: name === 'productID' ? product.productName : newOrderDetails[index].productName
-    };
-    setFormData({
-      ...formData,
-      orderDetails: newOrderDetails,
-    });
+    const newTotal = newDetails.reduce((sum, item) => sum + (item.amount || 0), 0);
+    setFormData(prev => ({ ...prev, orderDetails: newDetails, total: newTotal }));
   };
 
   const addOrderDetail = () => {
-    setFormData({
-      ...formData,
-      orderDetails: [...formData.orderDetails, { productID: '', quantity: 1, price: 0, discountPrice: 0, amount: 0 }],
-    });
+    setFormData(prev => ({
+      ...prev,
+      orderDetails: [...prev.orderDetails, { productID: '', quantity: 1, price: 0, discountPrice: 0, amount: 0 }]
+    }));
   };
 
   const removeOrderDetail = (index) => {
-    const newOrderDetails = formData.orderDetails.filter((_, i) => i !== index);
-    setFormData({
-      ...formData,
-      orderDetails: newOrderDetails,
-    });
+    const newDetails = formData.orderDetails.filter((_, i) => i !== index);
+    const newTotal = newDetails.reduce((sum, item) => sum + (item.amount || 0), 0);
+    setFormData(prev => ({ ...prev, orderDetails: newDetails, total: newTotal }));
   };
 
-  const validateForm = () => {
+  const validate = () => {
     const newErrors = {};
-    if (!formData.orderDate) newErrors.orderDate = "Order Date is required.";
-    if (!formData.orderTime) newErrors.orderTime = "Order Time is required.";
-    if (!formData.orderType) newErrors.orderType = "Order Type is required.";
-    if (formData.orderDetails.length === 0) newErrors.orderDetails = "At least one order detail is required.";
-    formData.orderDetails.forEach((detail, index) => {
-      if (!detail.productID) newErrors[`productID-${index}`] = "Product is required.";
-      if (detail.quantity <= 0) newErrors[`quantity-${index}`] = "Quantity must be greater than 0.";
-      if (detail.price <= 0) newErrors[`price-${index}`] = "Price must be greater than 0.";
-    });
+    if (!formData.orderType) newErrors.orderType = "Protocol Type Required";
+    if (formData.orderDetails.length === 0) newErrors.orderDetails = "Minimum 1 Item Required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) {
-      toast.error("Please correct the form errors.");
-      return;
-    }
-
-    const orderDetailsWithAmounts = formData.orderDetails.map(detail => ({
-      ...detail,
-      amount: (detail.quantity * detail.price) - detail.discountPrice,
-    }));
-
-    const totalOrderAmount = orderDetailsWithAmounts.reduce((sum, detail) => sum + detail.amount, 0);
-
-    const orderToUpdate = {
-      ...formData,
-      orderDate: new Date(formData.orderDate).toISOString(),
-      total: totalOrderAmount,
-      orderDetails: orderDetailsWithAmounts,
-    };
+    if (!validate()) return;
+    setIsSubmitting(true);
 
     try {
-      await updateOrder(id, orderToUpdate);
-      toast.success("Order updated successfully!");
-      navigate('/orders/list');
+      const payload = {
+        ...formData,
+        orderDate: new Date(formData.orderDate).toISOString(),
+      };
+      const response = await updateOrder(id, payload);
+      if (response.data.isSuccess) {
+        toast.success("Order protocol updated successfully.");
+        navigate('/orders/list');
+      } else {
+        toast.error(response.data.message || "Protocol rejection by server.");
+      }
     } catch (error) {
-      toast.error("Failed to update order.");
-      console.error("Error updating order:", error);
+      toast.error("Critical failure: Order service unreachable.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  if (loading) {
-    return <div className="p-3 max-w-4xl mx-auto">Loading order data...</div>;
-  }
-
-  if (!canEdit) {
-    return null; // Should already be redirected by useEffect
-  }
-
-  if (error) {
-    return <div className="p-3 max-w-4xl mx-auto text-red-600">Error: Failed to load order data. Please try again.</div>;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <div className="w-16 h-16 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin"></div>
+        <p className="mt-4 text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">Syncing Operational Protocol...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="p-3 max-w-4xl mx-auto">
-      <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Edit Order</h2>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label htmlFor="orderDate" className="block text-sm font-medium text-gray-700 mb-1">Order Date</label>
-            <input
-              type="date"
-              id="orderDate"
-              name="orderDate"
-              value={formData.orderDate}
-              onChange={handleChange}
-              className={`w-full px-4 py-2 border ${errors.orderDate ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-            />
-            {errors.orderDate && <p className="text-red-500 text-xs mt-1">{errors.orderDate}</p>}
-          </div>
-          <div>
-            <label htmlFor="orderTime" className="block text-sm font-medium text-gray-700 mb-1">Order Time</label>
-            <input
-              type="time"
-              id="orderTime"
-              name="orderTime"
-              value={formData.orderTime}
-              onChange={handleChange}
-              className={`w-full px-4 py-2 border ${errors.orderTime ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-            />
-            {errors.orderTime && <p className="text-red-500 text-xs mt-1">{errors.orderTime}</p>}
-          </div>
-          <div>
-            <label htmlFor="orderType" className="block text-sm font-medium text-gray-700 mb-1">Order Type</label>
-            <select
-              id="orderType"
-              name="orderType"
-              value={formData.orderType}
-              onChange={handleChange}
-              className={`w-full px-4 py-2 border ${errors.orderType ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-            >
-              <option value="">Select Order Type</option>
-              <option value="DineIn">Dine-In</option>
-              <option value="TakeOut">Take-Out</option>
-              <option value="Delivery">Delivery</option>
-            </select>
-            {errors.orderType && <p className="text-red-500 text-xs mt-1">{errors.orderType}</p>}
-          </div>
-          <div>
-            <label htmlFor="orderStatus" className="block text-sm font-medium text-gray-700 mb-1">Order Status</label>
-            <select
-              id="orderStatus"
-              name="orderStatus"
-              value={formData.orderStatus}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="Pending">Pending</option>
-              <option value="Processing">Processing</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
-              <option value="Paid">Paid</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="customerID" className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
-            <select
-              id="customerID"
-              name="customerID"
-              value={formData.customerID || ''}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="">Select Customer (Optional)</option>
-              {customers.map(customer => (
-                <option key={customer.customerID} value={customer.customerID}>
-                  {customer.customerName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="tableName" className="block text-sm font-medium text-gray-700 mb-1">Table Name (for Dine-In)</label>
-            <select
-              id="tableName"
-              name="tableName"
-              value={formData.tableName}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="">Select Table</option>
-              {diningTables.map(table => (
-                <option key={table.diningTableID} value={table.tableName}>
-                  {table.tableName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="waiterName" className="block text-sm font-medium text-gray-700 mb-1">Waiter Name (for Dine-In)</label>
-            <select
-              id="waiterName"
-              name="waiterName"
-              value={formData.waiterName}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="">Select Waiter</option>
-              {staff.map(staffMember => (
-                <option key={staffMember.staffID} value={staffMember.staffName}>
-                  {staffMember.staffName}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* Add DriverID and PromotionID fields if needed */}
-        </div>
-
-        <h2 className="text-xl font-bold mb-3">Order Details</h2>
-        {formData.orderDetails.map((detail, index) => (
-          <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 border rounded-lg bg-gray-50">
-            <div>
-              <label htmlFor={`productID-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-              <select
-                id={`productID-${index}`}
-                name="productID"
-                value={detail.productID}
-                onChange={(e) => handleOrderDetailChange(index, e)}
-                className={`w-full px-4 py-2 border ${errors[`productID-${index}`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="">Select Product</option>
-                {products.map(product => (
-                  <option key={product.id} value={product.id}>
-                    {product.productName}
-                  </option>
-                ))}
-              </select>
-              {errors[`productID-${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`productID-${index}`]}</p>}
-            </div>
-            <div>
-              <label htmlFor={`quantity-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-              <input
-                type="number"
-                id={`quantity-${index}`}
-                name="quantity"
-                value={detail.quantity}
-                onChange={(e) => handleOrderDetailChange(index, e)}
-                className={`w-full px-4 py-2 border ${errors[`quantity-${index}`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors[`quantity-${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`quantity-${index}`]}</p>}
-            </div>
-            <div>
-              <label htmlFor={`price-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Price</label>
-              <input
-                type="number"
-                id={`price-${index}`}
-                name="price"
-                value={detail.price}
-                onChange={(e) => handleOrderDetailChange(index, e)}
-                className={`w-full px-4 py-2 border ${errors[`price-${index}`] ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors[`price-${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`price-${index}`]}</p>}
-            </div>
-            <div>
-              <label htmlFor={`discountPrice-${index}`} className="block text-sm font-medium text-gray-700 mb-1">Discount Price</label>
-              <input
-                type="number"
-                id={`discountPrice-${index}`}
-                name="discountPrice"
-                value={detail.discountPrice}
-                onChange={(e) => handleOrderDetailChange(index, e)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={() => removeOrderDetail(index)}
-                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        ))}
-        {errors.orderDetails && <p className="text-red-500 text-xs mt-1">{errors.orderDetails}</p>}
-        <button
-          type="button"
-          onClick={addOrderDetail}
-          className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded mb-4"
-        >
-          Add Product to Order
+    <div className="container mx-auto p-6 animate-fade-in max-w-6xl text-left">
+      <div className="mb-8">
+        <button onClick={() => navigate('/orders/list')} className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-100 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-blue-600 hover:shadow-lg transition-all shadow-sm">
+          <FaArrowLeft /> Registry Return
         </button>
+      </div>
 
-        <div className="flex justify-end mt-4">
-          <button
-            type="button"
-            onClick={() => navigate('/orders/list')}
-            className="px-5 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition mr-2"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-5 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition"
-          >
-            Update Order
-          </button>
+      <FormCard>
+        <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
+          <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+            <FaClipboardList className="text-white text-2xl" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-black text-gray-900 tracking-tight uppercase">Modify Protocol #{formData.orderID}</h2>
+            <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">Operational Protocol Refinement</p>
+          </div>
         </div>
-      </form>
+
+        <form onSubmit={handleSubmit} className="space-y-12">
+          
+          {/* CORE SPECS */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Entry Date</label>
+              <div className="relative">
+                <FaCalendarAlt className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <input type="date" name="orderDate" value={formData.orderDate} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-100 focus:bg-white transition-all" required />
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Entry Time</label>
+              <div className="relative">
+                <FaClock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <input type="time" name="orderTime" value={formData.orderTime} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-100 focus:bg-white transition-all" required />
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Protocol Type</label>
+              <div className="relative">
+                <FaUtensils className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select name="orderType" value={formData.orderType} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 focus:bg-white transition-all" required>
+                  <option value="">Select Protocol</option>
+                  <option value="DineIn">Dine-In</option>
+                  <option value="TakeOut">Take-Out</option>
+                  <option value="Delivery">Delivery</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Lifecycle Status</label>
+              <div className="relative">
+                <FaTags className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select name="orderStatus" value={formData.orderStatus} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 focus:bg-white transition-all">
+                  <option value="Pending">Pending</option>
+                  <option value="Preparing">Preparing</option>
+                  <option value="Ready">Ready</option>
+                  <option value="Served">Served</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* LOGISTICAL HOOKS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Client Identity</label>
+              <div className="relative">
+                <FaUser className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select name="customerID" value={formData.customerID || ''} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 focus:bg-white transition-all">
+                  <option value="">Guest Client</option>
+                  {dependencies.customers.map(c => <option key={c.customerID} value={c.customerID}>{c.customerName}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Operational Table</label>
+              <div className="relative">
+                <FaUtensils className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select name="tableName" value={formData.tableName} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 focus:bg-white transition-all">
+                  <option value="">No Table</option>
+                  {dependencies.diningTables.map(t => <option key={t.diningTableID} value={t.tableName}>{t.tableName}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Service Lead (Waiter)</label>
+              <div className="relative">
+                <FaUser className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select name="waiterName" value={formData.waiterName} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 focus:bg-white transition-all">
+                  <option value="">Unassigned</option>
+                  {dependencies.staff.map(s => <option key={s.staffID} value={s.staffName}>{s.staffName}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* FINANCIAL HOOKS */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Payment Status</label>
+              <div className="relative">
+                <FaMoneyBillWave className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select name="paymentStatus" value={formData.paymentStatus} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 focus:bg-white transition-all">
+                  <option value="Unpaid">Unpaid</option>
+                  <option value="Paid">Paid</option>
+                  <option value="PartiallyPaid">Partially Paid</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Payment Method</label>
+              <div className="relative">
+                <FaMoneyBillWave className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select name="paymentMethod" value={formData.paymentMethod} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 focus:bg-white transition-all">
+                  <option value="">N/A</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="MobilePay">MobilePay</option>
+                  <option value="Split">Split Payment</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Gratuity (Tip)</label>
+              <div className="relative">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 font-bold">{currencySymbol}</span>
+                <input type="number" name="tipAmount" value={formData.tipAmount} onChange={handleInputChange} className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none font-bold text-gray-700 focus:border-blue-100 focus:bg-white transition-all" placeholder="0.00" />
+              </div>
+            </div>
+          </div>
+
+          {/* LINE ITEMS */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2"><FaBoxOpen /> Order Matrix</h3>
+              <button type="button" onClick={addOrderDetail} className="px-4 py-2 bg-blue-50 text-blue-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-100 transition-all flex items-center gap-2 shadow-sm"><FaPlus /> Add Component</button>
+            </div>
+            
+            <div className="space-y-4">
+              {formData.orderDetails.map((detail, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 bg-gray-50/50 rounded-[2rem] border border-gray-100 items-center animate-scale-in">
+                  <div className="md:col-span-4 relative group">
+                    <select name="productID" value={detail.productID} onChange={(e) => handleOrderDetailChange(index, e)} className="w-full px-6 py-4 bg-white border-2 border-transparent rounded-2xl outline-none font-black text-[10px] uppercase tracking-widest text-gray-600 appearance-none focus:border-blue-100 shadow-sm transition-all" required>
+                      <option value="">Select Item</option>
+                      {dependencies.products.map(p => <option key={p.id} value={p.id}>{p.productName}</option>)}
+                    </select>
+                  </div>
+                  <div className="md:col-span-2 relative group">
+                    <input type="number" name="quantity" value={detail.quantity} onChange={(e) => handleOrderDetailChange(index, e)} className="w-full px-6 py-4 bg-white border-2 border-transparent rounded-2xl outline-none font-black text-center text-[10px] uppercase tracking-widest text-gray-600 focus:border-blue-100 shadow-sm transition-all" placeholder="Qty" min="1" required />
+                  </div>
+                  <div className="md:col-span-2 relative group">
+                    <input type="number" name="price" value={detail.price} onChange={(e) => handleOrderDetailChange(index, e)} className="w-full px-6 py-4 bg-white border-2 border-transparent rounded-2xl outline-none font-black text-center text-[10px] uppercase tracking-widest text-blue-600 focus:border-blue-100 shadow-sm transition-all" placeholder="Price" required />
+                  </div>
+                  <div className="md:col-span-3 text-right pr-4">
+                    <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest block mb-1">Total Component Val</span>
+                    <span className="text-lg font-black text-gray-800 tracking-tighter">{currencySymbol}{detail.amount?.toLocaleString() || '0'}</span>
+                  </div>
+                  <div className="md:col-span-1 text-right">
+                    <button type="button" onClick={() => removeOrderDetail(index)} className="p-4 bg-white text-red-400 rounded-2xl hover:text-red-600 hover:shadow-lg transition-all shadow-sm border border-gray-100"><FaTrashAlt /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* SUMMARY & ACTIONS */}
+          <div className="flex flex-col md:flex-row items-end justify-between pt-10 border-t border-gray-100 gap-8">
+            <div className="flex flex-col items-start gap-4">
+               <div className="p-6 bg-blue-50 rounded-[2rem] border border-blue-100 min-w-[300px]">
+                 <div className="flex justify-between items-center mb-2">
+                   <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Aggregate Total</span>
+                   <FaMoneyBillWave className="text-blue-200" />
+                 </div>
+                 <h2 className="text-4xl font-black text-blue-600 tracking-tighter">{currencySymbol}{(formData.total + formData.tipAmount).toLocaleString()}</h2>
+                 <p className="text-[9px] font-bold text-blue-400 uppercase tracking-widest mt-2">Inc. {currencySymbol}{formData.tipAmount} gratuity</p>
+               </div>
+            </div>
+
+            <div className="flex gap-4">
+              <button type="button" onClick={() => navigate('/orders/list')} className="px-10 py-5 bg-gray-50 text-gray-400 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 hover:text-gray-600 transition-all flex items-center gap-3"><FaUndo /> Revert State</button>
+              <button type="submit" disabled={isSubmitting} className="px-12 py-5 bg-blue-600 text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-blue-500/30 hover:bg-blue-700 hover:-translate-y-1 transition-all flex items-center gap-3 disabled:opacity-50"><FaSave /> {isSubmitting ? 'Syncing...' : 'Commit Protocol'}</button>
+            </div>
+          </div>
+
+        </form>
       </FormCard>
     </div>
   );
 };
 
 export default OrderEdit;
-
-
-

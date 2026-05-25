@@ -172,7 +172,7 @@ const StaffEdit = () => {
               type="submit"
               className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
             >
-              Update Staff
+              Update
             </button>
           </div>
         </form>

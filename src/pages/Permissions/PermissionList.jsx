@@ -1,10 +1,22 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { debounce } from 'lodash';
-import PermissionAdd from './PermissionAdd.jsx';
+import PermissionAdd from './PermissionAdd';
 import { toast } from 'react-toastify';
 import { getAllPermissions, deletePermission } from '../../services/permissionService.js';
 import { hasPermission } from '../../utils/permissionUtils';
 import ProfessionalPagination from '../../components/ProfessionalPagination';
+import { 
+  FaSearch, 
+  FaPlus, 
+  FaEdit, 
+  FaTrashAlt, 
+  FaShieldAlt,
+  FaFilter,
+  FaKey,
+  FaFingerprint,
+  FaCubes,
+  FaTimesCircle
+} from 'react-icons/fa';
 
 export default function PermissionList() {
   const [permissions, setPermissions] = useState([]);
@@ -12,7 +24,7 @@ export default function PermissionList() {
   const [selectedPermission, setSelectedPermission] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [itemsPerPage, setItemsPerPage] = useState(50); // Showing "all" rows by default
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('PermissionName');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -33,17 +45,18 @@ export default function PermissionList() {
         sortDirection: sortDirection,
       };
       const response = await getAllPermissions(params);
-      if (response.data.isSuccess) {
-        setPermissions(response.data.data.items);
-        setTotalPermissions(response.data.data.totalRecords || 0);
+      if (response.data && response.data.isSuccess) {
+        const rawData = response.data.data || {};
+        setPermissions(rawData.items || []);
+        const total = rawData.totalRecords || rawData.TotalRecords || rawData.totalCount || rawData.TotalCount || (rawData.items?.length || 0);
+        setTotalPermissions(total);
       } else {
-        toast.error(response.data.message || 'Failed to fetch permissions');
+        toast.error('Failed to synchronize permission registry.');
         setPermissions([]);
         setTotalPermissions(0);
       }
     } catch (error) {
-      toast.error('An error occurred while fetching permissions.');
-      console.error(error);
+      toast.error('Critical failure: Permission registry unreachable.');
       setPermissions([]);
       setTotalPermissions(0);
     } finally {
@@ -74,266 +87,188 @@ export default function PermissionList() {
     }
   };
 
-  const handlePageChange = (newPage) => {
-    setCurrentPage(newPage);
-  };
-
-  const handleRowsPerPageChange = (newRowsPerPage) => {
-    setItemsPerPage(newRowsPerPage);
-    setCurrentPage(1);
-  };
-
-  const handleEdit = (permissionId) => {
-    if (!canUpdatePermission) {
-      toast.error('You do not have permission to edit permissions.');
-      return;
-    }
-    const permissionToEdit = permissions.find(perm => perm.id === permissionId);
-    if (permissionToEdit) {
-      setSelectedPermission(permissionToEdit);
-      setIsEditModalOpen(true);
-    }
+  const handleEdit = (permission) => {
+    if (!canUpdatePermission) return;
+    setSelectedPermission(permission);
+    setIsEditModalOpen(true);
   };
 
   const handleDelete = (id) => {
-    if (!canDeletePermission) {
-      toast.error('You do not have permission to delete permissions.');
-      return;
-    }
-    toast(
-      ({ closeToast }) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-800 mb-2">Are you sure you want to delete this permission?</span>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={async () => {
-                try {
-                  const response = await deletePermission(id);
-                  if (response.isSuccess) {
-                    toast.success('Permission deleted successfully');
-                  } else {
-                    toast.error(response.message || 'Failed to delete permission');
-                  }
-                } catch (error) {
-                  if (error.response && error.response.data && error.response.data.message) {
-                    toast.error(error.response.data.message);
-                  } else {
-                    toast.error('An error occurred while deleting the permission.');
-                  }
-                  console.error(error);
-                } finally {
+    if (!canDeletePermission) return;
+    
+    toast(({ closeToast }) => (
+      <div className="p-1">
+        <p className="text-sm font-bold text-gray-800 mb-3">Purge this security permission permanently?</p>
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              try {
+                const response = await deletePermission(id);
+                if (response.data && response.data.isSuccess) {
+                  toast.success('Security permission purged successfully');
                   fetchPermissions();
-                  closeToast();
+                } else {
+                  toast.error(response.data?.message || 'Purge rejected by system');
                 }
-              }}
-              className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Delete
-            </button>
-            <button
-              onClick={closeToast}
-              className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </div>
+              } catch (err) {
+                toast.error('Cannot purge permission: Active dependencies found');
+              }
+              closeToast();
+            }}
+            className="bg-red-500 text-white px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-red-600 transition-colors"
+          >
+            Confirm
+          </button>
+          <button
+            onClick={closeToast}
+            className="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
         </div>
-      ),
-      {
-        autoClose: false,
-        closeOnClick: false,
-        draggable: false
-      }
-    );
-  };
-
-  const handleSave = () => {
-    setIsEditModalOpen(false);
-    fetchPermissions();
+      </div>
+    ), { autoClose: false, closeOnClick: false });
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-center">
-        <h2 className="text-2xl font-semibold">Permission List</h2>
+    <div className="container mx-auto p-6 animate-fade-in max-w-7xl">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 flex items-center gap-3">
+            <FaShieldAlt className="text-blue-600" />
+            Permission List
+          </h1>
+          <p className="text-gray-500 mt-1 font-medium italic">Manage system access and security settings</p>
+        </div>
+        
         {canCreatePermission && (
           <button
-            onClick={() => {
-              setSelectedPermission(null);
-              setIsEditModalOpen(true);
-            }}
-            className="mt-4 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+            onClick={() => { setSelectedPermission(null); setIsEditModalOpen(true); }}
+            className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 transition-all active:scale-95"
           >
-            Add Permission
+            <FaPlus /> Add Permission
           </button>
         )}
       </div>
 
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      {/* FILTER & SEARCH BAR */}
+      <div className="mb-8 flex flex-col md:flex-row gap-4 items-center">
+        <div className="relative group flex-1">
           <input
             type="text"
             placeholder="Search permissions..."
-            className="w-full p-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-12 pr-4 py-4 bg-white border-2 border-gray-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none transition-all shadow-sm group-hover:shadow-md font-bold text-gray-700"
             onChange={handleSearchChange}
-            disabled={isLoading}
           />
-          <svg className="w-5 h-5 absolute left-2 top-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-          </svg>
+          <FaSearch className="absolute top-5 left-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
         </div>
       </div>
 
-      {isLoading ? (
-        <p>Loading permissions...</p>
-      ) : permissions.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-                <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('PermissionName')}
-                >
-                  <div className="flex items-center">
-                    Permission Name
-                    {sortField === 'PermissionName' && (
-                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('PermissionKey')}
-                >
-                  <div className="flex items-center">
-                    Permission Key
-                    {sortField === 'PermissionKey' && (
-                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('ControllerName')}
-                >
-                  <div className="flex items-center">
-                    Controller Name
-                    {sortField === 'ControllerName' && (
-                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('ActionName')}
-                >
-                  <div className="flex items-center">
-                    Action Name
-                    {sortField === 'ActionName' && (
-                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th
-                  className={`px-4 py-3 text-left text-sm font-semibold text-gray-900 ${!isLoading && 'cursor-pointer'}`}
-                  onClick={() => handleSort('ModuleName')}
-                >
-                  <div className="flex items-center">
-                    Module Name
-                    {sortField === 'ModuleName' && (
-                      <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={sortDirection === 'asc' ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
-                      </svg>
-                    )}
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Actions</th>
+      {/* TABLE SECTION */}
+      <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-gray-200/50 border border-gray-50 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer" onClick={() => handleSort('PermissionName')}>Permission Name</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest cursor-pointer" onClick={() => handleSort('PermissionKey')}>Permission Key</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Details</th>
+                <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {permissions.map((permission, idx) => (
-                <tr key={permission.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-4 text-sm text-gray-700">{(currentPage - 1) * itemsPerPage + idx + 1}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{permission.permissionName}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{permission.permissionKey}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{permission.controllerName}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{permission.actionName}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">{permission.moduleName}</td>
-                  <td className="px-4 py-4 text-sm text-gray-700">
-                    <div className="flex space-x-2">
-                      {canUpdatePermission && (
-                        <button
-                          onClick={() => handleEdit(permission.id)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors"
-                          aria-label="Edit permission"
-                        >
-                          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5h-2m-2 0V7a2 2 0 00-2-2H11a2 2 0 00-2 2v5a2 2 0 002 2h5M9 12h1m-1 4h1" />
-                          </svg>
-                        </button>
-                      )}
-                      {canDeletePermission && (
-                        <button
-                          onClick={() => handleDelete(permission.id)}
-                          className="p-1 border border-gray-300 rounded-md hover:bg-red-100 transition-colors"
-                          aria-label="Delete permission"
-                        >
-                          <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                      )}
+            <tbody className="divide-y divide-gray-50">
+              {isLoading ? (
+                <tr><td colSpan="4" className="py-20 text-center"><div className="w-12 h-12 border-4 border-gray-100 border-t-blue-600 rounded-full animate-spin mx-auto"></div><p className="mt-4 text-xs font-black text-gray-300 uppercase tracking-widest animate-pulse">Syncing Registry...</p></td></tr>
+              ) : permissions.length > 0 ? (
+                permissions.map((permission) => (
+                  <tr key={permission.id} className="hover:bg-gray-50/50 transition-all group">
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 font-black shadow-inner border-2 border-white ring-4 ring-gray-50 group-hover:ring-blue-50 transition-all">
+                            <FaKey />
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="font-black text-gray-800 text-sm tracking-tight">{permission.permissionName}</span>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Module: {permission.moduleName || 'GLOBAL'}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex flex-col gap-1">
+                        <span className="px-3 py-1 bg-gray-50 text-gray-600 border border-gray-100 rounded-lg text-[10px] font-black uppercase tracking-widest w-fit">
+                          {permission.permissionKey}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-gray-600 flex items-center gap-2"><FaFingerprint className="text-gray-300" /> {permission.controllerName}</span>
+                        <span className="text-xs font-bold text-gray-400 flex items-center gap-2"><FaCubes className="text-gray-300" /> {permission.actionName}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-right">
+                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                        {canUpdatePermission && (
+                          <button onClick={() => handleEdit(permission)} className="p-3 bg-white border border-gray-100 rounded-xl text-blue-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm"><FaEdit /></button>
+                        )}
+                        {canDeletePermission && (
+                          <button onClick={() => handleDelete(permission.id)} className="p-3 bg-white border border-gray-100 rounded-xl text-red-600 hover:shadow-xl transition-all hover:scale-110 shadow-sm"><FaTrashAlt /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="px-8 py-20 text-center">
+                    <div className="flex flex-col items-center gap-4 text-gray-300">
+                      <FaShieldAlt size={60} />
+                      <p className="text-xl font-black uppercase tracking-widest text-gray-300">No Permissions Found</p>
                     </div>
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
-      ) : (
-        <p className="text-center py-4">No permissions found.</p>
-      )}
+      </div>
 
-      {!isLoading && (
+      {/* PAGINATION SECTION */}
+      <div className="mt-8">
         <ProfessionalPagination
           count={totalPermissions}
           page={currentPage}
           rowsPerPage={itemsPerPage}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
+          onPageChange={setCurrentPage}
+          onRowsPerPageChange={setItemsPerPage}
         />
-      )}
+      </div>
 
+      {/* MODAL SYSTEM */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4 sm:mx-auto p-6 animate-scale-in relative">
-            <div className="flex justify-between items-center border-b pb-4 mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">{selectedPermission ? 'Edit Permission' : 'Add Permission'}</h3>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="text-gray-400 hover:text-red-500 transition"
-                aria-label="Close modal"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fade-in">
+          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in">
+            <div className="p-10 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div>
+                <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                  <FaShieldAlt className="text-blue-600" />
+                  {selectedPermission ? 'Edit Permission' : 'Add Permission'}
+                </h3>
+                <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest">
+                  {selectedPermission ? `Key: ${selectedPermission.permissionKey}` : 'Permission Management'}
+                </p>
+              </div>
+              <button onClick={() => setIsEditModalOpen(false)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white shadow-xl text-gray-300 hover:text-red-500 transition-all hover:rotate-90"><FaTimesCircle size={28}/></button>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto">
-              <PermissionAdd
-                isEdit={!!selectedPermission}
-                permissionData={selectedPermission}
-                onSave={handleSave}
+            <div className="p-10 overflow-y-auto flex-1 custom-scrollbar">
+              <PermissionAdd 
+                isEdit={!!selectedPermission} 
+                permissionData={selectedPermission} 
+                onSave={() => { fetchPermissions(); setIsEditModalOpen(false); }}
                 onClose={() => setIsEditModalOpen(false)}
                 showTitle={false}
               />
@@ -341,6 +276,7 @@ export default function PermissionList() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

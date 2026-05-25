@@ -2,10 +2,10 @@ import axios from '../utils/axios';
 
 const alertService = {
   getAlerts: () => {
-    return axios.get('/api/alerts');
+    return axios.get('/LowStockAlerts');
   },
   acknowledgeAlert: (id) => {
-    return axios.post(`/api/alerts/${id}/acknowledge`);
+    return axios.post(`/LowStockAlerts/${id}/acknowledge`);
   },
 };
 

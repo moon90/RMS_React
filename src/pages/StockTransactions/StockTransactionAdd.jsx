@@ -1,310 +1,417 @@
-import React, { useState, useEffect } from 'react';
-import { createStockTransaction } from '../../services/stockTransactionService';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createStockTransaction, updateStockTransaction } from '../../services/stockTransactionService';
 import { getAllProducts } from '../../services/productService';
 import { getAllSuppliers } from '../../services/supplierService';
-import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { salesService } from '../../services/salesService';
+import { purchaseService } from '../../services/purchaseService';
+import { hasPermission } from '../../utils/permissionUtils';
 import FormCard from '../../components/FormCard.jsx';
 import { toast } from 'react-toastify';
+import { 
+  FaExchangeAlt, 
+  FaSave, 
+  FaUndo, 
+  FaBoxOpen, 
+  FaTruck, 
+  FaCalendarAlt, 
+  FaClipboardList,
+  FaFileInvoice,
+  FaCogs,
+  FaHistory
+} from 'react-icons/fa';
 
-const ValidationToast = ({ title, messages }) => (
-  <div>
-    <strong>{title}</strong>
-    <ul style={{ whiteSpace: 'pre-wrap', textAlign: 'left', paddingLeft: '20px' }}>
-      {messages.map((msg, index) => (
-        <li key={index}>{msg}</li>
-      ))}
-    </ul>
-  </div>
-);
+const StockTransactionAdd = ({ isEdit, transactionData, onSave, onClose, showTitle = true }) => {
+  const [formData, setFormData] = useState({
+    productID: '',
+    supplierID: '',
+    transactionType: 'IN',
+    quantity: '',
+    remarks: '',
+    transactionDate: new Date().toISOString().slice(0, 10),
+    expireDate: '',
+    saleID: '',
+    purchaseID: '',
+    transactionSource: '',
+    adjustmentType: '',
+    reason: '',
+    ingredientID: ''
+  });
 
-const StockTransactionAdd = () => {
-  const [productID, setProductID] = useState('');
-  const [supplierID, setSupplierID] = useState('');
-  const [transactionType, setTransactionType] = useState('IN');
-  const [quantity, setQuantity] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
-  const [expireDate, setExpireDate] = useState('');
-  const [saleID, setSaleID] = useState('');
-  const [purchaseID, setPurchaseID] = useState('');
-  const [transactionSource, setTransactionSource] = useState('');
-  const [adjustmentType, setAdjustmentType] = useState('');
-  const [reason, setReason] = useState('');
-  const [products, setProducts] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
+  const [dependencies, setDependencies] = useState({
+    products: [],
+    suppliers: [],
+    ingredients: [],
+    sales: [],
+    purchases: []
+  });
+
   const [errors, setErrors] = useState({});
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
+  const canModify = isEdit ? hasPermission('STOCK_TRANSACTION_UPDATE') : hasPermission('STOCK_TRANSACTION_CREATE');
 
-  const canCreate = user?.permissions?.includes('STOCK_TRANSACTION_CREATE');
+  const fetchDependencies = useCallback(async () => {
+    try {
+      const [productsRes, suppliersRes, ingredientsRes, salesRes, purchasesRes] = await Promise.all([
+        getAllProducts({ pageNumber: 1, pageSize: 1000, status: true }),
+        getAllSuppliers({ pageNumber: 1, pageSize: 1000, status: true }),
+        import('../../services/ingredientService').then(m => m.getAllIngredients({ pageNumber: 1, pageSize: 1000, status: true })),
+        salesService.getAllSales({ pageNumber: 1, pageSize: 1000 }),
+        purchaseService.getAllPurchases({ pageNumber: 1, pageSize: 1000 })
+      ]);
+
+      const normalize = (res, idKey, nameKey) => {
+        if (!res.data || !res.data.isSuccess) return [];
+        const items = res.data.data?.items || res.data.data || [];
+        return items.map(i => ({
+          id: i[idKey] || i.id || i.Id,
+          name: i[nameKey] || i.name || i.Name || `ID: ${i[idKey] || i.id || i.Id}`
+        }));
+      };
+
+      setDependencies({
+        products: normalize(productsRes, 'productID', 'productName'),
+        suppliers: normalize(suppliersRes, 'supplierID', 'supplierName'),
+        ingredients: normalize(ingredientsRes, 'ingredientID', 'ingredientName'),
+        sales: normalize(salesRes, 'saleID', 'saleDate'),
+        purchases: normalize(purchasesRes, 'purchaseID', 'purchaseDate')
+      });
+    } catch (error) {
+      console.error('Dependency sync failure:', error);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!canCreate) {
-      navigate('/access-denied');
-    }
-
-    const fetchDependencies = async () => {
-      try {
-        const [productsRes, suppliersRes] = await Promise.all([
-          getAllProducts({ pageNumber: 1, pageSize: 1000, status: true }),
-          getAllSuppliers({ pageNumber: 1, pageSize: 1000, status: true }),
-        ]);
-
-        if (productsRes.data.isSuccess) {
-          setProducts(productsRes.data.data.items);
-        }
-        if (suppliersRes.data.isSuccess) {
-          setSuppliers(suppliersRes.data.data.items);
-        }
-      } catch (error) {
-        toast.error('Failed to load dependencies.');
-        console.error(error);
-      }
-    };
-
     fetchDependencies();
-  }, [canCreate, navigate]);
+    if (isEdit && transactionData) {
+      setFormData({
+        ...transactionData,
+        transactionDate: transactionData.transactionDate ? transactionData.transactionDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+        expireDate: transactionData.expireDate ? transactionData.expireDate.slice(0, 10) : '',
+        productID: transactionData.productID || '',
+        supplierID: transactionData.supplierID || '',
+        ingredientID: transactionData.ingredientID || '',
+        saleID: transactionData.saleID || '',
+        purchaseID: transactionData.purchaseID || '',
+        adjustmentType: transactionData.adjustmentType || '',
+        reason: transactionData.reason || ''
+      });
+    }
+  }, [isEdit, transactionData, fetchDependencies]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: '' }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canModify) {
+      toast.error('Identity Authorization: Modification denied.');
+      return;
+    }
+
+    setIsLoading(true);
     setErrors({});
 
     try {
-      const stockTransactionData = {
-        productID: parseInt(productID),
-        supplierID: supplierID ? parseInt(supplierID) : null,
-        transactionType: transactionType,
-        quantity: parseInt(quantity),
-        remarks: remarks,
-        transactionDate: transactionDate,
-        expireDate: expireDate ? expireDate : null,
-        saleID: saleID ? parseInt(saleID) : null,
-        purchaseID: purchaseID ? parseInt(purchaseID) : null,
-        transactionSource: transactionSource,
-        adjustmentType: adjustmentType || null,
-        reason: reason || null,
+      // Ensure quantity is a valid number to prevent NaN/400 errors
+      const qty = parseInt(formData.quantity);
+      if (isNaN(qty)) {
+          toast.error('Magnitude validation: Quantity must be a numeric value.');
+          setIsLoading(false);
+          return;
+      }
+
+      const payload = {
+        ...formData,
+        productID: formData.productID ? parseInt(formData.productID) : null,
+        supplierID: formData.supplierID ? parseInt(formData.supplierID) : null,
+        ingredientID: formData.ingredientID ? parseInt(formData.ingredientID) : null,
+        quantity: qty,
+        saleID: formData.saleID ? parseInt(formData.saleID) : null,
+        purchaseID: formData.purchaseID ? parseInt(formData.purchaseID) : null,
+        adjustmentType: formData.transactionType === 'ADJUSTMENT' ? formData.adjustmentType : null,
+        reason: formData.transactionType === 'ADJUSTMENT' ? formData.reason : null,
       };
 
-      await createStockTransaction(stockTransactionData);
-      toast.success('Stock transaction created successfully!');
-      navigate('/stock-transactions/list');
-    } catch (err) {
-      if (err.response && err.response.data && err.response.data.details) {
+      // Validation: Either Product or Ingredient must be linked
+      if (!payload.productID && !payload.ingredientID) {
+          toast.error('Registry Error: Movement must be linked to a Product or Ingredient Node.');
+          setIsLoading(false);
+          return;
+      }
+
+      const response = isEdit 
+        ? await updateStockTransaction(formData.transactionID, payload)
+        : await createStockTransaction(payload);
+
+      if (response.data && response.data.isSuccess) {
+        toast.success(isEdit ? 'Movement updated.' : 'Movement saved.');
+        if (onSave) onSave();
+        if (onClose) onClose();
+      } else {
+        toast.error(response.data.message || 'System rejection: Operation failed.');
+      }
+    } catch (error) {
+      if (error.response?.data?.details) {
         const newErrors = {};
-        const errorMessages = err.response.data.details.map(error => {
-          newErrors[error.propertyName.toLowerCase()] = error.errorMessage;
-          return `- ${error.errorMessage}`;
+        error.response.data.details.forEach(err => {
+          newErrors[err.propertyName.toLowerCase()] = err.errorMessage;
         });
         setErrors(newErrors);
-        toast.error(<ValidationToast title={err.response.data.message} messages={errorMessages} />);
+        toast.error('Validation failure: Review registry entries.');
       } else {
-        toast.error(err.response?.data?.message || err.message || 'An error occurred.');
+        toast.error('Critical failure: Stock registry unreachable.');
       }
-      console.error(err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (!canCreate) {
-    return null;
-  }
-
   return (
-    <div className="p-3 max-w-4xl mx-auto">
+    <div className={`p-1 ${showTitle ? 'max-w-4xl mx-auto' : ''}`}>
       <FormCard>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">Add New Stock Transaction</h2>
+        {showTitle && (
+          <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-100">
+            <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+              <FaExchangeAlt className="text-white text-2xl" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+                {isEdit ? 'Edit Movement' : 'Add Movement'}
+              </h2>
+              <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">Adjust stock levels</p>
+            </div>
+          </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-8 text-left">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="productID" className="block text-sm font-medium text-gray-700 mb-1">Product</label>
-              <select
-                id="productID"
-                name="productID"
-                value={productID}
-                onChange={(e) => setProductID(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.productID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="">Select Product</option>
-                {products.map(prod => (
-                  <option key={prod.id} value={prod.id}>{prod.productName}</option>
-                ))}
-              </select>
-              {errors.productID && <p className="text-red-500 text-xs mt-1">{errors.productID}</p>}
+            
+            {/* Core Details */}
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Product Node</label>
+              <div className="relative">
+                <FaBoxOpen className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select
+                  name="productID"
+                  value={formData.productID}
+                  onChange={handleChange}
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 ${errors.productid ? 'border-red-400' : 'border-transparent'} rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-900 appearance-none`}
+                  required
+                >
+                  <option value="" className="text-gray-900 bg-white">Select Product</option>
+                  {dependencies.products.map(p => <option key={p.id} value={p.id} className="text-gray-900 bg-white">{p.name}</option>)}
+                </select>
+              </div>
+              {errors.productid && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">{errors.productid}</p>}
             </div>
-            <div>
-              <label htmlFor="supplierID" className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
-              <select
-                id="supplierID"
-                name="supplierID"
-                value={supplierID}
-                onChange={(e) => setSupplierID(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.supplierID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="">Select Supplier</option>
-                {suppliers.map(sup => (
-                  <option key={sup.id} value={sup.id}>{sup.supplierName}</option>
-                ))}
-              </select>
-              {errors.supplierID && <p className="text-red-500 text-xs mt-1">{errors.supplierID}</p>}
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Ingredient Node</label>
+              <div className="relative">
+                <FaBoxOpen className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select
+                  name="ingredientID"
+                  value={formData.ingredientID}
+                  onChange={handleChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-900 appearance-none"
+                >
+                  <option value="" className="text-gray-900 bg-white">Select Ingredient (Optional)</option>
+                  {dependencies.ingredients.map(i => <option key={i.id} value={i.id} className="text-gray-900 bg-white">{i.name}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label htmlFor="transactionType" className="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
-              <select
-                id="transactionType"
-                name="transactionType"
-                value={transactionType}
-                onChange={(e) => setTransactionType(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.transactionType ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              >
-                <option value="IN">IN</option>
-                <option value="OUT">OUT</option>
-                <option value="ADJUSTMENT">ADJUSTMENT</option>
-              </select>
-              {errors.transactionType && <p className="text-red-500 text-xs mt-1">{errors.transactionType}</p>}
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Supplier Authority</label>
+              <div className="relative">
+                <FaTruck className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select
+                  name="supplierID"
+                  value={formData.supplierID}
+                  onChange={handleChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-900 appearance-none"
+                >
+                  <option value="" className="text-gray-900 bg-white">Select Supplier (Optional)</option>
+                  {dependencies.suppliers.map(s => <option key={s.id} value={s.id} className="text-gray-900 bg-white">{s.name}</option>)}
+                </select>
+              </div>
             </div>
-            {transactionType === 'ADJUSTMENT' && (
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Movement Type</label>
+              <div className="relative">
+                <FaExchangeAlt className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select
+                  name="transactionType"
+                  value={formData.transactionType}
+                  onChange={handleChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-900 appearance-none"
+                  required
+                >
+                  <option value="IN" className="text-gray-900 bg-white">IN (Stock Entry)</option>
+                  <option value="OUT" className="text-gray-900 bg-white">OUT (Stock Removal)</option>
+                  <option value="ADJUSTMENT" className="text-gray-900 bg-white">ADJUSTMENT (Correction)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Quantity Magnitude</label>
+              <div className="relative">
+                <FaHistory className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <input
+                  type="number"
+                  name="quantity"
+                  value={formData.quantity}
+                  onChange={handleChange}
+                  placeholder="0.00"
+                  className={`w-full pl-14 pr-6 py-4 bg-gray-50 border-2 ${errors.quantity ? 'border-red-400' : 'border-transparent'} rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700`}
+                  required
+                />
+              </div>
+              {errors.quantity && <p className="text-[10px] text-red-500 font-bold mt-1 ml-2">{errors.quantity}</p>}
+            </div>
+
+            {/* Dates */}
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Transaction Date</label>
+              <div className="relative">
+                <FaCalendarAlt className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <input
+                  type="date"
+                  name="transactionDate"
+                  value={formData.transactionDate}
+                  onChange={handleChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Expiry Threshold</label>
+              <div className="relative">
+                <FaCalendarAlt className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <input
+                  type="date"
+                  name="expireDate"
+                  value={formData.expireDate}
+                  onChange={handleChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700"
+                />
+              </div>
+            </div>
+
+            {/* Reference IDs */}
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Sales Reference (Optional)</label>
+              <div className="relative">
+                <FaFileInvoice className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select
+                  name="saleID"
+                  value={formData.saleID}
+                  onChange={handleChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-900 appearance-none"
+                >
+                  <option value="" className="text-gray-900 bg-white">None / Manual</option>
+                  {dependencies.sales.map(s => (
+                    <option key={s.id} value={s.id} className="text-gray-900 bg-white">
+                      Sale #{s.id} ({new Date(s.name).toLocaleDateString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="relative group">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Purchase Reference (Optional)</label>
+              <div className="relative">
+                <FaFileInvoice className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                <select
+                  name="purchaseID"
+                  value={formData.purchaseID}
+                  onChange={handleChange}
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-900 appearance-none"
+                >
+                  <option value="" className="text-gray-900 bg-white">None / Manual</option>
+                  {dependencies.purchases.map(p => (
+                    <option key={p.id} value={p.id} className="text-gray-900 bg-white">
+                      Purchase #{p.id} ({new Date(p.name).toLocaleDateString()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Adjustment Specifics */}
+            {formData.transactionType === 'ADJUSTMENT' && (
               <>
-                <div>
-                  <label htmlFor="adjustmentType" className="block text-sm font-medium text-gray-700 mb-1">Adjustment Type</label>
-                  <select
-                    id="adjustmentType"
-                    name="adjustmentType"
-                    value={adjustmentType}
-                    onChange={(e) => setAdjustmentType(e.target.value)}
-                    required
-                    className={`w-full px-4 py-2 border ${errors.adjustmentType ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-                  >
-                    <option value="">Select Adjustment Type</option>
-                    <option value="Addition">Addition</option>
-                    <option value="Subtraction">Subtraction</option>
-                  </select>
-                  {errors.adjustmentType && <p className="text-red-500 text-xs mt-1">{errors.adjustmentType}</p>}
+                <div className="relative group md:col-span-1 animate-fade-in">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Adjustment Vector</label>
+                  <div className="relative">
+                    <FaCogs className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-blue-500" />
+                    <select
+                      name="adjustmentType"
+                      value={formData.adjustmentType}
+                      onChange={handleChange}
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-900 appearance-none"
+                      required
+                    >
+                      <option value="" className="text-gray-900 bg-white">Select Direction</option>
+                      <option value="Addition" className="text-gray-900 bg-white">Addition (+)</option>
+                      <option value="Subtraction" className="text-gray-900 bg-white">Subtraction (-)</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
-                  <textarea
-                    id="reason"
-                    name="reason"
-                    value={reason}
-                    placeholder="Enter reason for adjustment"
-                    onChange={(e) => setReason(e.target.value)}
-                    rows="3"
-                    required
-                    className={`w-full px-4 py-2 border ${errors.reason ? 'border-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-                  ></textarea>
-                  {errors.reason && <p className="text-red-500 text-xs mt-1">{errors.reason}</p>}
+                <div className="relative group md:col-span-1 animate-fade-in">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Adjustment Rationale</label>
+                  <div className="relative">
+                    <FaClipboardList className="absolute left-5 top-5 text-gray-300 group-focus-within:text-blue-500" />
+                    <textarea
+                      name="reason"
+                      value={formData.reason}
+                      onChange={handleChange}
+                      placeholder="Specify cause for adjustment..."
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 min-h-[58px] max-h-[150px]"
+                      required
+                    ></textarea>
+                  </div>
                 </div>
               </>
             )}
-            <div>
-              <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-              <input
-                type="number"
-                id="quantity"
-                name="quantity"
-                value={quantity}
-                placeholder="Enter quantity"
-                onChange={(e) => setQuantity(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.quantity ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.quantity && <p className="text-red-500 text-xs mt-1">{errors.quantity}</p>}
-            </div>
-            <div>
-              <label htmlFor="transactionDate" className="block text-sm font-medium text-gray-700 mb-1">Transaction Date</label>
-              <input
-                type="date"
-                id="transactionDate"
-                name="transactionDate"
-                value={transactionDate}
-                onChange={(e) => setTransactionDate(e.target.value)}
-                required
-                className={`w-full px-4 py-2 border ${errors.transactionDate ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.transactionDate && <p className="text-red-500 text-xs mt-1">{errors.transactionDate}</p>}
-            </div>
-            <div>
-              <label htmlFor="expireDate" className="block text-sm font-medium text-gray-700 mb-1">Expire Date</label>
-              <input
-                type="date"
-                id="expireDate"
-                name="expireDate"
-                value={expireDate}
-                onChange={(e) => setExpireDate(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.expireDate ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.expireDate && <p className="text-red-500 text-xs mt-1">{errors.expireDate}</p>}
-            </div>
-            <div>
-              <label htmlFor="saleID" className="block text-sm font-medium text-gray-700 mb-1">Sale ID</label>
-              <input
-                type="number"
-                id="saleID"
-                name="saleID"
-                value={saleID}
-                placeholder="Enter sale ID"
-                onChange={(e) => setSaleID(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.saleID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.saleID && <p className="text-red-500 text-xs mt-1">{errors.saleID}</p>}
-            </div>
-            <div>
-              <label htmlFor="purchaseID" className="block text-sm font-medium text-gray-700 mb-1">Purchase ID</label>
-              <input
-                type="number"
-                id="purchaseID"
-                name="purchaseID"
-                value={purchaseID}
-                placeholder="Enter purchase ID"
-                onChange={(e) => setPurchaseID(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.purchaseID ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.purchaseID && <p className="text-red-500 text-xs mt-1">{errors.purchaseID}</p>}
-            </div>
-            <div>
-              <label htmlFor="transactionSource" className="block text-sm font-medium text-gray-700 mb-1">Transaction Source</label>
-              <input
-                type="text"
-                id="transactionSource"
-                name="transactionSource"
-                value={transactionSource}
-                placeholder="Enter transaction source"
-                onChange={(e) => setTransactionSource(e.target.value)}
-                className={`w-full px-4 py-2 border ${errors.transactionSource ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              />
-              {errors.transactionSource && <p className="text-red-500 text-xs mt-1">{errors.transactionSource}</p>}
-            </div>
-            <div className="col-span-2">
-              <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
-              <textarea
-                id="remarks"
-                name="remarks"
-                value={remarks}
-                placeholder="Enter remarks"
-                onChange={(e) => setRemarks(e.target.value)}
-                rows="3"
-                className={`w-full px-4 py-2 border ${errors.remarks ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-              ></textarea>
-              {errors.remarks && <p className="text-red-500 text-xs mt-1">{errors.remarks}</p>}
+
+            <div className="relative group md:col-span-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block group-focus-within:text-blue-600">Transaction Source & Remarks</label>
+              <div className="relative">
+                <FaClipboardList className="absolute left-5 top-5 text-gray-300 group-focus-within:text-blue-500" />
+                <textarea
+                  name="remarks"
+                  value={formData.remarks}
+                  onChange={handleChange}
+                  placeholder="Additional contextual information..."
+                  className="w-full pl-14 pr-6 py-4 bg-gray-50 border-2 border-transparent rounded-2xl outline-none focus:bg-white focus:border-blue-100 transition-all font-bold text-gray-700 min-h-[100px]"
+                ></textarea>
+              </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-50">
             <button
               type="button"
-              onClick={() => navigate('/stock-transactions/list')}
-              className="px-5 py-2 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300 transition"
+              onClick={() => { if(onClose) onClose(); }}
+              className="px-8 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-100 hover:text-gray-600 transition-all flex items-center gap-2"
             >
-              Cancel
+              <FaUndo /> Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition font-medium shadow"
+              disabled={isLoading}
+              className="px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-500/20 hover:bg-blue-700 hover:-translate-y-1 transition-all flex items-center gap-2 disabled:opacity-50"
             >
-              Add Stock Transaction
+              <FaSave /> {isLoading ? 'Saving...' : isEdit ? 'Update' : 'Save'}
             </button>
           </div>
         </form>

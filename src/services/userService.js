@@ -49,4 +49,10 @@ export const toggleUserStatus = async (id, newStatus) => {
   return await api.put(`/Users/${id}/status`, { status: newStatus });
 };
 
+export const getUserMenuPermissions = async (userId) => {
+  return await api.get(`/Users/${userId}/menu-permissions`);
+};
 
+export const getUserRolePermissions = async (userId) => {
+  return await api.get(`/Users/${userId}/role-permissions`);
+};

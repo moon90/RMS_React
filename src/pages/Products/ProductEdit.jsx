@@ -169,11 +169,15 @@ const ProductEdit = () => {
       // Handle product image
       if (productImageFile) {
         formData.append('productImageFile', productImageFile);
-      } 
+      } else if (!existingProductImageUrl) {
+        formData.append('productImage', ''); // Tell backend to remove image
+      }
 
       // Handle thumbnail image
       if (thumbnailImageFile) {
         formData.append('thumbnailImageFile', thumbnailImageFile);
+      } else if (!existingProductThumbnailUrl) {
+        formData.append('thumbnailImage', ''); // Tell backend to remove image
       }
 
       formData.append('categoryID', categoryID ? parseInt(categoryID) : '');
